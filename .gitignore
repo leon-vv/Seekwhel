@@ -1,0 +1,6 @@
+build
+*.cmx
+*.cmxa
+*.cmi
+*.swp
+Session.vim

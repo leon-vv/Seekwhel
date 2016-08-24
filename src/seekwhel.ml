@@ -315,22 +315,30 @@ module Make (C : Connection) = struct
 	    | Both of ('a * 'b)
 
 	(* Todo: handle sql injections *)
-	(* Todo: handle swapped on columns *)
 	let join dir ~on expr =
 	    let columns = Array.append T1.columns T2.columns
-	    in  Select.q
+	    in let result = Select.q
 		    ~table:T1.name
 		    columns
 		|> Select.where expr
 		|> Select.join T2.name dir ~on
 		|> Select.exec
-		|> Select.get_all (fun cb ->
-		    match Select.(cb.is_null (fst on), cb.is_null (snd on)) with
-		    | (false, false) -> Both (Q1.t_of_callback cb, Q2.t_of_callback cb)
-		    | (true, false) -> Right (Q2.t_of_callback cb)
-		    | (false, true) -> Left (Q1.t_of_callback cb)
-		    | (true, true) -> failwith "Seekwhel: 'on' columns in join query both returned NULL")
+	    and ordered_on = if Array.exists
+		(fun c ->
+		    string_of_any_column c = string_of_column (fst on))
+		T1.columns then on (* Correct order *)
+
+		else (snd on, fst on) (* Swap *)
+	    in
+		Select.get_all (fun cb ->
+		    match Select.(cb.is_null (fst ordered_on), cb.is_null (snd ordered_on)) with
+			| (false, false) -> Both (Q1.t_of_callback cb, Q2.t_of_callback cb)
+			| (true, false) -> Right (Q2.t_of_callback cb)
+			| (false, true) -> Left (Q1.t_of_callback cb)
+			| (true, true) -> failwith "Seekwhel: 'on' columns in join query both returned NULL")
+		    result
 	
+
 	let inner_join ~on expr =
 	    let rows = join Select.Inner ~on expr
 	    in

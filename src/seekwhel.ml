@@ -177,24 +177,41 @@ module Make (C : Connection) = struct
 		in if pred element then (Some idx)
 		else get_index_where ~idx:(idx+1) pred arr)
 
+	let index_of_column target col =
+	    let column_equal c = (
+		string_of_column col = string_of_any_column c
+	    )
+	    in get_index_where column_equal target
+
 	let column_value (qres, target) row col =
-	    let column_equal c = string_of_any_column c = string_of_column col
-	    in match get_index_where column_equal target with
+	    match index_of_column target col with
 		| Some idx -> let v = (qres#getvalue row idx) in 
 				column_value_of_string col v
 		| None -> raise Not_found
+	
+	let is_null (qres, target) row col =
+	    match index_of_column target col with
+		| Some idx -> qres#getisnull row idx
+		| None -> raise Not_found
 
-	type 'a column_callback = { f : 'a. ('a column -> 'a) } 
+	type 'a column_callback = {
+		get_value : 'a. ('a column -> 'a) ;
+		is_null : 'a. ('a column -> bool)
+	} 
+
 	type ('a, 'b) row_callback = 'a column_callback -> 'b
 
 	let n_rows (r:result) = (fst r)#ntuples
 
 	let get_all callback (res:result) =
 	    Array.init (fst res)#ntuples (fun idx ->
-		    callback { f = (fun col -> column_value res idx col) } )
+		    callback {
+			get_value = (fun col -> column_value res idx col) ;
+			is_null = (fun col -> is_null res idx col )
+		    })
 
 	let to_string {target; table; where; join} =
-	    let columns = Array.(String.concat "," (to_list (map string_of_any_column target)))
+	    let columns = String.concat "," Array.(to_list (map string_of_any_column target))
 	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ table
 	    and join_s = match join with
 		| None -> ""
@@ -264,7 +281,6 @@ module Make (C : Connection) = struct
 	val empty : t
 	val name : string 
 	val columns : any_column array 
-	val primary_key : any_column array 
 	
 	val column_mappings : t any_column_mapping array
     end
@@ -274,7 +290,7 @@ module Make (C : Connection) = struct
 	let t_of_callback cb =
 	    Array.fold_left
 		(fun t (AnyMapping (c, apply, _)) ->
-		    let v = Select.(cb.f) c
+		    let v = Select.(cb.get_value) c
 		    in apply t v)
 		T.empty
 		T.column_mappings ;;
@@ -292,8 +308,15 @@ module Make (C : Connection) = struct
 	
 	module Q1 = Queryable(T1)
 	module Q2 = Queryable(T2)
+ 
+	type ('a, 'b) join_result =
+	    | Left of 'a
+	    | Right of 'b
+	    | Both of ('a * 'b)
 
+	(* Todo: handle sql injections *)
 	(* Todo: handle name clashes *)
+	(* Todo: handle swapped on columns *)
 	let join dir ~on expr =
 	    let columns = Array.append T1.columns T2.columns
 	    in  Select.q
@@ -303,7 +326,20 @@ module Make (C : Connection) = struct
 		|> Select.join T2.name dir ~on
 		|> Select.exec
 		|> Select.get_all (fun cb ->
-		    (Q1.t_of_callback cb, Q2.t_of_callback cb))
+		    match Select.(cb.is_null (fst on), cb.is_null (snd on)) with
+		    | (false, false) -> Both (Q1.t_of_callback cb, Q2.t_of_callback cb)
+		    | (true, false) -> Right (Q2.t_of_callback cb)
+		    | (false, true) -> Left (Q1.t_of_callback cb)
+		    | (true, true) -> failwith "Seekwhel: 'on' columns in join query both returend NULL")
+	
+	let inner_join ~on expr =
+	    let rows = join Select.Inner ~on expr
+	    in
+		Array.map (function
+		    | Both res -> res
+		    | _ -> failwith "Seekwhel: 'on' columns in INNER join cannot be NULL; unexpected result")
+		    rows
+	
     end
 end
 

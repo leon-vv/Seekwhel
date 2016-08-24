@@ -1,17 +1,4 @@
 
-(*
-module Join3 (T1 : Table)(T2 : Table)(T3 : Table) : sig
-    val join : Select.join_direction
-	-> on1:('a column * 'a column)
-	-> Select.join_direction
-	-> on2:('a column * 'a column)
-	-> bool_expr
-	-> (T1.t * T2.t * T3.t) array
-end
-*)
-
-
-
 module type Connection = sig
     val connection : Postgresql.connection
 end
@@ -77,15 +64,15 @@ module Make : functor (C : Connection)
 	    -> t
 	    -> t
 
-	type 'a column_callback = { f : 'a. ('a column -> 'a) } 
+	type 'a column_callback = {
+		get_value : 'a. ('a column -> 'a) ;
+		is_null : 'a. ('a column -> bool)
+	}
 	type ('a, 'b) row_callback = 'a column_callback -> 'b
 
 	val get_all : ('a, 'b) row_callback
 	    -> result
 	    -> 'b array
-
-	val exec : t -> result
-
     end
 
     module Update : sig
@@ -99,9 +86,6 @@ module Make : functor (C : Connection)
 	val exec : t -> unit
     end
 
-
-    (* The delete module is a bit different, as it does not
-    have a target *)
     module Delete : sig
 	type t
 	val q : table:string -> bool_expr -> t
@@ -123,7 +107,6 @@ module Make : functor (C : Connection)
 	val empty : t
 	val name : string 
 	val columns : any_column array 
-	val primary_key : any_column array 
 	
 	val column_mappings : t any_column_mapping array
     end
@@ -132,9 +115,21 @@ module Make : functor (C : Connection)
 	val select : bool_expr -> T.t array 
     end
 
-    module Join2 (T1 : Table)(T2: Table) : sig
-	val join : Select.join_direction
+    module Join2(T1 : Table)(T2 : Table) : sig
+    
+	type ('a, 'b) join_result =
+	    | Left of 'a
+	    | Right of 'b
+	    | Both of ('a * 'b)
+	
+	val join :
+	    Select.join_direction
 	    -> on:('a column * 'a column)
+	    -> bool_expr
+	    -> ((T1.t, T2.t) join_result) array
+	
+	val inner_join :
+	    on:('a column * 'a column)
 	    -> bool_expr
 	    -> (T1.t * T2.t) array
     end

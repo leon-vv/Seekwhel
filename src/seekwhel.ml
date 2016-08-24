@@ -315,7 +315,6 @@ module Make (C : Connection) = struct
 	    | Both of ('a * 'b)
 
 	(* Todo: handle sql injections *)
-	(* Todo: handle name clashes *)
 	(* Todo: handle swapped on columns *)
 	let join dir ~on expr =
 	    let columns = Array.append T1.columns T2.columns
@@ -330,7 +329,7 @@ module Make (C : Connection) = struct
 		    | (false, false) -> Both (Q1.t_of_callback cb, Q2.t_of_callback cb)
 		    | (true, false) -> Right (Q2.t_of_callback cb)
 		    | (false, true) -> Left (Q1.t_of_callback cb)
-		    | (true, true) -> failwith "Seekwhel: 'on' columns in join query both returend NULL")
+		    | (true, true) -> failwith "Seekwhel: 'on' columns in join query both returned NULL")
 	
 	let inner_join ~on expr =
 	    let rows = join Select.Inner ~on expr

@@ -13,17 +13,34 @@ module Make (C : Connection) = struct
 	| Columnf : string -> float column
 	| Columnt : string -> string column
 
+
+    (* This check shouldn't be neccessary. Identifiers (table
+    and column names) should be static and thus not
+    vulnerable to injections.  Still, somewhere, someone 
+    will plug in dynamic values or even values supplied
+    from an user interface. To keep the library
+    safe we will throw an exception when someone insert
+    a quote in a column name. If we then quote the column names
+    hopefully we prevent most attacks.  *)
+    let safely_quote_string s =
+	    if String.contains s '"' then
+	    	failwith "Seekwhel: identifiers should not contain quotes; Seekwhel
+		will take care of adding quotes around your column names (identifier: " ^ s ^ ")"
+	    else "\"" ^ s ^ "\""
+
+	
     let string_of_column (type a) (c:a column) =
-	match c with
+	let s = match c with
 	    | Columni s -> s
 	    | Columnf s -> s
 	    | Columnt s -> s
-
+	in safely_quote_string s
+	
     let column_value_of_string (type a) (c:a column) (v:string): a =
 	match c with
 	    | Columni _ -> int_of_string v
 	    | Columnf _ -> float_of_string v
-	    | Columnt _ -> v
+	    | Columnt _ -> C.connection#escape_string v
 	
     type any_column =
 	| AnyColumn : 'a column -> any_column
@@ -55,7 +72,7 @@ module Make (C : Connection) = struct
 
     let string_of_slot (type a) (expr:a slot) : string =
 	match expr with
-	    | Column c -> C.connection#escape_string (string_of_column c)
+	    | Column c -> string_of_column c
 	    | Int i -> string_of_int i
 	    | Float f -> string_of_float f
 	    | Text s -> "'" ^ (C.connection#escape_string s) ^ "'"
@@ -111,7 +128,7 @@ module Make (C : Connection) = struct
 	    let (columns, values) = List.split (stringify_any_tagged_value_array target)
 	    in let column_part = String.concat "," columns
 	    and values_part = String.concat "," values
-	    in "INSERT INTO " ^ table ^
+	    in "INSERT INTO " ^ safely_quote_string table ^
 		" ( " ^ column_part ^ " ) " ^
 		" VALUES ( " ^ values_part ^ " ) "
 	
@@ -212,13 +229,12 @@ module Make (C : Connection) = struct
 
 	let to_string {target; table; where; join} =
 	    let columns = String.concat "," Array.(to_list (map string_of_any_column target))
-	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ table
+	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ safely_quote_string table
 	    and join_s = match join with
 		| None -> ""
 		| Some {table_name; direction; left_column; right_column} ->
-		    string_of_direction direction ^ " JOIN " ^ table_name
-		    ^ " ON " ^ left_column ^ " = " ^
-		    right_column
+		    string_of_direction direction ^ " JOIN " ^ safely_quote_string table_name
+		    ^ " ON " ^ left_column ^ " = " ^ right_column
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
 	    in match where with
 		| Some (expr) -> first_and_joined ^ " WHERE " ^ string_of_expr expr
@@ -247,8 +263,9 @@ module Make (C : Connection) = struct
 	let to_string {target; table; where} =
 	    let target_s = stringify_any_tagged_value_array target
 	    in let equals = List.map (fun (col, v) -> col ^ " = " ^ v) target_s
-	    in " UPDATE " ^ table ^ " SET "
+	    in " UPDATE " ^ (safely_quote_string table) ^ " SET "
 	    ^ " ( " ^ (String.concat "," equals) ^ " ) "
+	    ^ " WHERE " ^ string_of_expr where
 
 	let exec upd = exec_ignore (to_string upd)
     end
@@ -263,7 +280,8 @@ module Make (C : Connection) = struct
 	let where expr query = {query with where = (combine_expr query.where expr)}
 	
 	let to_string {table; where} =
-	    " DELETE " ^ " FROM " ^ table ^ " WHERE " ^ string_of_expr where
+	    " DELETE " ^ " FROM " ^ safely_quote_string table
+	    ^ " WHERE " ^ string_of_expr where
 
 	let exec del = exec_ignore (to_string del)
     end
@@ -314,7 +332,7 @@ module Make (C : Connection) = struct
 	    | Right of 'b
 	    | Both of ('a * 'b)
 
-	(* Todo: handle sql injections *)
+	(* Todo: handle joining on the same table *)
 	let join dir ~on expr =
 	    let columns = Array.append T1.columns T2.columns
 	    in let result = Select.q

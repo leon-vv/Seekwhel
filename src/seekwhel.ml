@@ -1,3 +1,5 @@
+open CalendarLib 
+
 module type Connection = sig
     val connection : Postgresql.connection
 end
@@ -12,6 +14,7 @@ module Make (C : Connection) = struct
 	| Columni : string -> int column
 	| Columnf : string -> float column
 	| Columnt : string -> string column
+	| Columnd : string -> Calendar.t column
 
 
     (* Todo: test the shit out of this function *)	
@@ -50,6 +53,7 @@ module Make (C : Connection) = struct
 	    | Columni cn -> Columni (rtis cn new_name)
 	    | Columnf cn -> Columnf (rtis cn new_name)
 	    | Columnt cn -> Columnt (rtis cn new_name)
+	    | Columnd cn -> Columnd (rtis cn new_name)
 
     let ( <|| ) = rename_table
     
@@ -118,6 +122,7 @@ module Make (C : Connection) = struct
 	    | Columni s -> s
 	    | Columnf s -> s
 	    | Columnt s -> s
+	    | Columnd s -> s
 	in safely_quote_string s
 	
     let column_value_of_string (type a) (c:a column) (v:string): a =
@@ -125,6 +130,7 @@ module Make (C : Connection) = struct
 	    | Columni _ -> int_of_string v
 	    | Columnf _ -> float_of_string v
 	    | Columnt _ -> C.connection#escape_string v
+	    | Columnd _ -> Printer.Calendar.from_string v
 	
     type any_column =
 	| AnyColumn : 'a column -> any_column
@@ -138,10 +144,12 @@ module Make (C : Connection) = struct
 
     let string_of_tagged_value (type a) (t:a tagged_value) =
 	let soc = string_of_column in
-	    match (fst t) with
-		| Columni s as c -> (soc c, string_of_int (snd t))
-		| Columnf s as c -> (soc c, string_of_float (snd t))
-		| Columnt s as c -> (soc c, C.connection#escape_string (snd t))
+	    let v = snd t
+	    in match (fst t) with
+		| Columni s as c -> (soc c, string_of_int v)
+		| Columnf s as c -> (soc c, string_of_float v)
+		| Columnt s as c -> (soc c, C.connection#escape_string v)
+		| Columnd s as c -> (soc c, Printer.Calendar.to_string v)
 
     type any_tagged_value =
 	| AnyTaggedValue : 'a tagged_value -> any_tagged_value ;;

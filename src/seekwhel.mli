@@ -1,3 +1,4 @@
+open CalendarLib
 
 module type Connection = sig
     val connection : Postgresql.connection
@@ -10,6 +11,7 @@ module Make : functor (C : Connection)
 	| Columni : string -> int column
 	| Columnf : string -> float column
 	| Columnt : string -> string column
+	| Columnd : string -> Calendar.t column
 
     val ( <|| ): 'a column -> string -> 'a column ;;
 

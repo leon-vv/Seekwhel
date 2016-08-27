@@ -1,4 +1,4 @@
-CAML_FLAGS = -I ./build -package postgresql -linkpkg -thread
+CAML_FLAGS = -I ./build -package postgresql -package calendar -linkpkg -thread
 
 build/seekwhel.cmxa: build/seekwhel.cmx
 	ocamlfind ocamlopt -o $@ -a $<

@@ -14,19 +14,103 @@ module Make (C : Connection) = struct
 	| Columnt : string -> string column
 
 
+    (* Todo: test the shit out of this function *)	
+    let split_string_around_dots str =
+	let rec inner s idx previous_idx sub_list = 
+	    if idx = -1 then (String.sub s 0 (previous_idx)) :: sub_list
+	    else (
+		if String.get s idx = '.'
+		then 
+		    let idx_plus = idx + 1
+		    in let new_sub = String.sub s idx_plus (previous_idx - idx_plus) 
+		    in inner s (idx-1) idx (new_sub::sub_list)
+
+		else inner s (idx-1) previous_idx sub_list )
+
+	in inner str 0 (String.length str - 1) []
+
+    (* Rename the table name in the column 'column'.
+    We assume the column consists of three or two parts
+    separated by dots (schema name, table name, column name) *)
+    let rename_table_in_string column table_name =
+	let parts = split_string_around_dots table_name
+	in let new_parts = 
+	    match parts with
+		| [p1;p2;p3] -> [p1;table_name;p3]
+		| [p1;p2] -> [table_name; p2]
+		| _ -> failwith ("Seekwhel: function 'rename_table', expected a column name
+	    	of the format schema.tablename.column or tablename.column. Column "
+	    	^ column ^ " was not of the expected format.")
+	in String.concat "." new_parts
+
+
+    let rename_table (type a) (c:a column) new_name :a column =
+	let rtis = rename_table_in_string
+	in match c with
+	    | Columni cn -> Columni (rtis cn new_name)
+	    | Columnf cn -> Columnf (rtis cn new_name)
+	    | Columnt cn -> Columnt (rtis cn new_name)
+
+    let ( <|| ) = rename_table
+    
+    type parser_state = 
+	| Begin (* Start *)
+	| Read (* Read one or more characters (no quotes) *)
+	| Quote_begin (* Read one quote at the start,
+			and maybe some characters thereafter *)
+	| Quote_end (* Read a quote at start,
+		    maybe some characters and then another quote *)
+	| Invalid (* The string is not valid *)
+
+    (* The state transition the parser makes if in state 'state'
+    and reads a character 'c' *)
+    let parser_state_transition state c =
+	match state with
+	    | Begin  when c != '"' -> Read
+	    | Begin -> Quote_begin
+
+	    | Read when c != '"' -> Read
+	    | Read -> Invalid
+
+	    | Quote_begin when c != '"' -> Quote_begin
+	    | Quote_begin -> Quote_end
+
+	    | Quote_end
+	    | Invalid -> Invalid
+
+
+    let fold_string_left f state str =
+	let len = String.length str
+	in let rec inner state idx =
+	    if idx >= len then state
+	    else inner (f state (String.get str idx)) (idx + 1)
+	in inner state 0
+	
+    let quote_identifier ident =
+	let st = fold_string_left
+	    parser_state_transition
+	    Begin
+	    ident
+	and quotify s = "\"" ^ s ^ "\""
+	in match st with
+	    | Begin -> "\"\"" (* Empty string *)
+	    | Read -> quotify ident
+	    | Quote_end -> ident
+	    | Quote_begin
+	    | Invalid -> failwith "Could not quote identifier " ^ ident
+		^ " because it contains invalid characters"
+	
     (* This check shouldn't be neccessary. Identifiers (table
     and column names) should be static and thus not
     vulnerable to injections.  Still, somewhere, someone 
     will plug in dynamic values or even values supplied
-    from an user interface. To keep the library
-    safe we will throw an exception when someone insert
-    a quote in a column name. If we then quote the column names
-    hopefully we prevent most attacks.  *)
+    from an user interface. To keep the library safe
+    we will make sure that all identifiers
+    are quoted (and that no identifier includes a quote). *)
     let safely_quote_string s =
-	    if String.contains s '"' then
-	    	failwith "Seekwhel: identifiers should not contain quotes; Seekwhel
-		will take care of adding quotes around your column names (identifier: " ^ s ^ ")"
-	    else "\"" ^ s ^ "\""
+	let parts = split_string_around_dots  s
+	in let new_parts = List.map quote_identifier parts
+	in String.concat "." new_parts
 
 	
     let string_of_column (type a) (c:a column) =
@@ -45,7 +129,10 @@ module Make (C : Connection) = struct
     type any_column =
 	| AnyColumn : 'a column -> any_column
 
-    let string_of_any_column (AnyColumn c) = string_of_column c ;;
+
+    let string_of_any_column = function
+	| AnyColumn c -> string_of_column c
+
 
     type 'a tagged_value = 'a column * 'a;;
 
@@ -135,7 +222,7 @@ module Make (C : Connection) = struct
 	let exec ins = exec_ignore (to_string ins)
     end
 
-    (* Add new_expr to the optional expression expr *)
+    (* Add new_expr to the expression expr *)
     let combine_expr expr new_expr =
 	match expr with
 	    | (And xs) -> And (xs @ [new_expr])
@@ -160,7 +247,8 @@ module Make (C : Connection) = struct
 
 	type join = {
 	    direction : join_direction ;
-	    table_name : string ;
+	    (* Table name and table abbreviation *)
+	    table_name : string * (string option) ;
 	    left_column : string ;
 	    right_column : string
 	}
@@ -176,15 +264,29 @@ module Make (C : Connection) = struct
 
 	let where expr query = {query with where = (combine_optional_expr query.where expr)}
 
-	let join : string -> join_direction -> on:('a column*'a column) -> t -> t =
-	    fun table_name direction ~on query ->
+	let abbr_join : ?abbr:(string option)
+	    -> string
+	    -> join_direction
+	    -> on:('a column*'a column)
+	    -> t -> t =
+
+	    fun ?abbr:(abbr=None) table_name direction ~on query ->
 		let join = match query.join with
-		    | None -> { direction; table_name;
+		    | None -> { direction; table_name = (table_name, abbr);
 			left_column = string_of_column (fst on); 
 			right_column = string_of_column (snd on);
 		    }
 		    | Some _ -> failwith "Select already contains join"
 		in {query with join = Some join } 
+
+	let join table_name dir ~on sel =
+	    abbr_join table_name dir ~on sel
+
+	(* Perform a join on the same table *)
+	(* 'abbr' stand for 'abbreviation' *)
+	let self_join table_name as_abbr dir ~on sel = 
+	    let (`As abbr) = as_abbr
+	    in abbr_join ~abbr:(Some abbr) table_name dir ~on sel
 
 	let rec get_index_where ?idx:(idx=0) pred arr =
 	    if idx > Array.length arr - 1 then None
@@ -233,7 +335,11 @@ module Make (C : Connection) = struct
 	    and join_s = match join with
 		| None -> ""
 		| Some {table_name; direction; left_column; right_column} ->
-		    string_of_direction direction ^ " JOIN " ^ safely_quote_string table_name
+		    let name_part = match table_name with
+			| (t, None) -> safely_quote_string t
+			| (t, Some abbr) -> safely_quote_string t ^ " " ^ safely_quote_string abbr
+
+		    in string_of_direction direction ^ " JOIN " ^ name_part
 		    ^ " ON " ^ left_column ^ " = " ^ right_column
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
 	    in match where with
@@ -333,6 +439,7 @@ module Make (C : Connection) = struct
 	    | Both of ('a * 'b)
 
 	(* Todo: handle joining on the same table *)
+	(* Todo: handle multiple joins *)
 	let join dir ~on expr =
 	    let columns = Array.append T1.columns T2.columns
 	    in let result = Select.q

@@ -11,6 +11,8 @@ module Make : functor (C : Connection)
 	| Columnf : string -> float column
 	| Columnt : string -> string column
 
+    val ( <|| ): 'a column -> string -> 'a column ;;
+
     type any_column =
 	| AnyColumn : 'a column -> any_column
 

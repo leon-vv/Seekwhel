@@ -7,13 +7,23 @@ end
 module Make : functor (C : Connection)
     -> sig
 
+
     type 'a column =
 	| Columni : string -> int column
 	| Columnf : string -> float column
 	| Columnt : string -> string column
 	| Columnd : string -> Calendar.t column
 
-    val ( <|| ): 'a column -> string -> 'a column ;;
+    val sub_between_test : unit -> unit
+    val split_string_around_dots_test : unit -> unit
+	
+    val ( <|| ): 'a column -> string -> 'a column 
+
+    val rename_table_in_string_test : unit -> unit
+    val rename_table_test : unit -> unit
+    
+    val quote_identifier_test : unit -> unit
+    val safely_quote_string_test : unit -> unit
 
     type any_column =
 	| AnyColumn : 'a column -> any_column
@@ -21,7 +31,7 @@ module Make : functor (C : Connection)
     type 'a tagged_value = 'a column * 'a
 
     type any_tagged_value =
-	| AnyTaggedValue : 'a tagged_value -> any_tagged_value ;;
+	| AnyTaggedValue : 'a tagged_value -> any_tagged_value
 
     type 'a slot =
 	| Column : 'a column -> 'a slot

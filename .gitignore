@@ -3,4 +3,6 @@ build
 *.cmxa
 *.cmi
 *.swp
+*.cmo
+*.cma
 Session.vim

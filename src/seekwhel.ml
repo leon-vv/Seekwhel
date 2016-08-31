@@ -5,6 +5,31 @@ module type Connection = sig
 end
 
 module Make (C : Connection) = struct
+ 
+    (* Begin helpful functions for testing *)
+
+    let rec test1 f = function
+	| (input, output)::rest ->
+	    assert (f input = output) ;
+	    test1 f rest 
+	| [] -> ()
+
+    let rec test2 f = function
+	| (i1, i2, output)::rest ->
+	    assert (f i1 i2 = output) ;
+	    test2 f rest
+	| [] -> ()
+
+    let rec expect_exception f = function
+	| input::is ->
+	    let ex = (try f input; false
+		with _ -> true)
+	    in if ex then expect_exception f is
+	    else failwith "No exception thrown"
+	| [] -> ()
+	
+
+    (* End helpful functions for testing *)
 
     let exec_ignore st = ignore (C.connection#exec
 			~expect:[Postgresql.Command_ok]
@@ -16,36 +41,79 @@ module Make (C : Connection) = struct
 	| Columnt : string -> string column
 	| Columnd : string -> Calendar.t column
 
+    (* Retrieve the substring of s between
+    i1 and i2 (excluding i1 and i2) *)
+    let sub_between s i1 i2 =
+	let diff = i2 - i1
+	in if diff < 2 then ""
+	    else String.sub s (i1+1) (diff - 1) ;;
 
-    (* Todo: test the shit out of this function *)	
+    let sub_between_test () =
+	assert (sub_between "" 0 0 = "") ;
+	assert (sub_between "a" 0 0 = "") ;
+	assert (sub_between "ab" 0 0 = "") ;
+	assert (sub_between "ab" 0 1 = "") ;
+	assert (sub_between "abc" 0 1 = "") ;
+	assert (sub_between "abc" 0 2 = "b") ;
+	assert (sub_between "abcd" 1 3 = "c") ;
+	assert (sub_between "abcdefg" 1 5 = "cde") ;
+	assert (sub_between "abc" 0 3 = "bc") ;
+	assert (sub_between "abc" (-1) 3 = "abc")
+
     let split_string_around_dots str =
 	let rec inner s idx previous_idx sub_list = 
-	    if idx = -1 then (String.sub s 0 (previous_idx)) :: sub_list
+	    if idx = -1 then (sub_between s (-1) previous_idx) :: sub_list
 	    else (
 		if String.get s idx = '.'
 		then 
-		    let idx_plus = idx + 1
-		    in let new_sub = String.sub s idx_plus (previous_idx - idx_plus) 
+		    let new_sub = sub_between s idx previous_idx
 		    in inner s (idx-1) idx (new_sub::sub_list)
 
 		else inner s (idx-1) previous_idx sub_list )
 
-	in inner str 0 (String.length str - 1) []
+	in let length_minus = String.length str - 1
+	in inner str length_minus (String.length str) []
+   	
+    let split_string_around_dots_test () =
+	test1 split_string_around_dots
+	    [	("", [""]) ;
+		("adf", ["adf"]) ;
+		("#$%^", ["#$%^"]) ;
+		("asé¶»«³", ["asé¶»«³"]) ;
+		(".", [""; ""]) ;
+		("...", [""; ""; ""; ""]) ;
+		("a.b..d", ["a"; "b"; ""; "d"]) ;
+		("asdf adsf.ads ..", ["asdf adsf"; "ads "; ""; ""]) ;
+		(".a.b", [""; "a"; "b"]) ;
+		("a.b.c", ["a"; "b"; "c"]) ] ;;
+
 
     (* Rename the table name in the column 'column'.
     We assume the column consists of three or two parts
     separated by dots (schema name, table name, column name) *)
     let rename_table_in_string column table_name =
-	let parts = split_string_around_dots table_name
+	let parts = split_string_around_dots column
 	in let new_parts = 
 	    match parts with
 		| [p1;p2;p3] -> [p1;table_name;p3]
 		| [p1;p2] -> [table_name; p2]
-		| _ -> failwith ("Seekwhel: function 'rename_table', expected a column name
-	    	of the format schema.tablename.column or tablename.column. Column "
-	    	^ column ^ " was not of the expected format.")
+		| _ -> failwith ("Seekwhel: function 'rename_table', expected a column
+	    	name of the format schema.tablename.column or tablename.column." ^
+	    	" Column " ^ column ^ " was not of the expected format.")
 	in String.concat "." new_parts
 
+    let rename_table_in_string_test () =
+	let flip f = (fun x y -> f y x)
+	in (expect_exception
+	    ((flip rename_table_in_string) "table")
+	    [""; "a"; "..."; "a.b.c.d"] ;
+	test2 rename_table_in_string [
+	    ("a.b", "def", "def.b") ;
+	    ("a.b.c", "d", "a.d.c") ;
+	    ("..", "a", ".a.") ;
+	    (".", "a", "a.")
+	])
+	
 
     let rename_table (type a) (c:a column) new_name :a column =
 	let rtis = rename_table_in_string
@@ -56,6 +124,10 @@ module Make (C : Connection) = struct
 	    | Columnd cn -> Columnd (rtis cn new_name)
 
     let ( <|| ) = rename_table
+
+    let rename_table_test () = assert (
+	(Columni "products.stock" <|| "p1")
+	    = Columni "p1.stock")
     
     type parser_state = 
 	| Begin (* Start *)
@@ -90,7 +162,7 @@ module Make (C : Connection) = struct
 	    else inner (f state (String.get str idx)) (idx + 1)
 	in inner state 0
 	
-    let quote_identifier ident =
+    let safely_quote_identifier ident =
 	let st = fold_string_left
 	    parser_state_transition
 	    Begin
@@ -104,6 +176,18 @@ module Make (C : Connection) = struct
 	    | Invalid -> failwith "Could not quote identifier " ^ ident
 		^ " because it contains invalid characters"
 	
+    let quote_identifier_test () =
+	expect_exception safely_quote_identifier
+	    ["asdf\""; "\"sfd"; "\""; "aasf\"asdfasdf";
+	    "\"\"a"; "a\"\""; "\"\"asdfad\"\""] ;
+	test1 safely_quote_identifier [
+	    ("", "\"\"");
+	    ("a", "\"a\"");
+	    ("\"\"", "\"\"");
+	    ("\"a\"", "\"a\"")
+	]
+	
+	    
     (* This check shouldn't be neccessary. Identifiers (table
     and column names) should be static and thus not
     vulnerable to injections.  Still, somewhere, someone 
@@ -111,19 +195,29 @@ module Make (C : Connection) = struct
     from an user interface. To keep the library safe
     we will make sure that all identifiers
     are quoted (and that no identifier includes a quote). *)
-    let safely_quote_string s =
-	let parts = split_string_around_dots  s
-	in let new_parts = List.map quote_identifier parts
+    let safely_quote_column s =
+	let parts = split_string_around_dots s
+	in let new_parts = List.map safely_quote_identifier parts
 	in String.concat "." new_parts
 
+    let safely_quote_string_test () =
+	expect_exception safely_quote_column
+	    ["\""; "adc.d\"d"; "a\""] ;
+	test1 safely_quote_column
+	    [("a.b.c", "\"a\".\"b\".\"c\"");
+	    ("..", "\"\".\"\".\"\"");
+	    ("\"a\".b", "\"a\".\"b\"");
+	    ("a.d.\"k\"", "\"a\".\"d\".\"k\"");
+	    ("\"\"", "\"\"")]
 	
+
     let string_of_column (type a) (c:a column) =
 	let s = match c with
 	    | Columni s -> s
 	    | Columnf s -> s
 	    | Columnt s -> s
 	    | Columnd s -> s
-	in safely_quote_string s
+	in safely_quote_column s
 	
     let column_value_of_string (type a) (c:a column) (v:string): a =
 	match c with
@@ -223,7 +317,7 @@ module Make (C : Connection) = struct
 	    let (columns, values) = List.split (stringify_any_tagged_value_array target)
 	    in let column_part = String.concat "," columns
 	    and values_part = String.concat "," values
-	    in "INSERT INTO " ^ safely_quote_string table ^
+	    in "INSERT INTO " ^ safely_quote_identifier table ^
 		" ( " ^ column_part ^ " ) " ^
 		" VALUES ( " ^ values_part ^ " ) "
 	
@@ -339,14 +433,14 @@ module Make (C : Connection) = struct
 
 	let to_string {target; table; where; join} =
 	    let columns = String.concat "," Array.(to_list (map string_of_any_column target))
-	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ safely_quote_string table
+	    and sqi = safely_quote_identifier
+	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ sqi table
 	    and join_s = match join with
 		| None -> ""
 		| Some {table_name; direction; left_column; right_column} ->
 		    let name_part = match table_name with
-			| (t, None) -> safely_quote_string t
-			| (t, Some abbr) -> safely_quote_string t ^ " " ^ safely_quote_string abbr
-
+			| (t, None) -> sqi t
+			| (t, Some abbr) -> sqi t ^ " " ^ sqi abbr
 		    in string_of_direction direction ^ " JOIN " ^ name_part
 		    ^ " ON " ^ left_column ^ " = " ^ right_column
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
@@ -377,7 +471,7 @@ module Make (C : Connection) = struct
 	let to_string {target; table; where} =
 	    let target_s = stringify_any_tagged_value_array target
 	    in let equals = List.map (fun (col, v) -> col ^ " = " ^ v) target_s
-	    in " UPDATE " ^ (safely_quote_string table) ^ " SET "
+	    in " UPDATE " ^ (safely_quote_identifier table) ^ " SET "
 	    ^ " ( " ^ (String.concat "," equals) ^ " ) "
 	    ^ " WHERE " ^ string_of_expr where
 
@@ -394,7 +488,7 @@ module Make (C : Connection) = struct
 	let where expr query = {query with where = (combine_expr query.where expr)}
 	
 	let to_string {table; where} =
-	    " DELETE " ^ " FROM " ^ safely_quote_string table
+	    " DELETE " ^ " FROM " ^ safely_quote_identifier table
 	    ^ " WHERE " ^ string_of_expr where
 
 	let exec del = exec_ignore (to_string del)

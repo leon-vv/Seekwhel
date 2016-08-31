@@ -5,4 +5,5 @@ build
 *.swp
 *.cmo
 *.cma
+*.o
 Session.vim

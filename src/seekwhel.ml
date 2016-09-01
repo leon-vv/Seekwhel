@@ -314,6 +314,10 @@ module Make (C : Connection) = struct
 	    | And xs -> map_join xs " and "
 	    | Or xs -> map_join xs " or " ;;
 
+    let where_clause_of_optional_expr = function
+	| None -> ""
+	| Some expr -> string_of_expr expr
+
     module type Query = sig
 	type t
 	type target
@@ -471,9 +475,7 @@ module Make (C : Connection) = struct
 		    in string_of_direction direction ^ " JOIN " ^ name_part
 		    ^ " ON " ^ left_column ^ " = " ^ right_column
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
-	    in match where with
-		| Some (expr) -> first_and_joined ^ " WHERE " ^ string_of_expr expr
-		| None -> first_and_joined
+	    in first_and_joined ^ (where_clause_of_optional_expr where)
 	
 	let exec sel =
 	    let res = C.connection#exec (to_string sel)
@@ -488,19 +490,20 @@ module Make (C : Connection) = struct
 	type t = {
 	    target : target ;
 	    table : string ;
-	    where : bool_expr
+	    where : bool_expr option
 	}
 	type result = unit
 
-	let q ~table target where = {target; table; where }
-	let where expr query = {query with where = (combine_expr query.where expr)}
+	let q ~table target = {target; table; where = None}
+	let where expr query =
+	    {query with where = (combine_optional_expr query.where expr)}
 
 	let to_string {target; table; where} =
 	    let target_s = stringify_any_tagged_value_array target
 	    in let equals = List.map (fun (col, v) -> col ^ " = " ^ v) target_s
 	    in " UPDATE " ^ (safely_quote_identifier table) ^ " SET "
 	    ^ " ( " ^ (String.concat "," equals) ^ " ) "
-	    ^ " WHERE " ^ string_of_expr where
+	    ^ where_clause_of_optional_expr where
 
 	let exec upd = exec_ignore (to_string upd)
     end
@@ -509,14 +512,16 @@ module Make (C : Connection) = struct
     module Delete = struct
 	type t = {
 	    table: string ;
-	    where : bool_expr
+	    where : bool_expr option
 	}
-	let q ~table where = {table; where = where}
-	let where expr query = {query with where = (combine_expr query.where expr)}
+	let q ~table = {table; where = None}
+
+	let where expr query =
+	    {query with where = (combine_optional_expr query.where expr)}
 	
 	let to_string {table; where} =
 	    " DELETE " ^ " FROM " ^ safely_quote_identifier table
-	    ^ " WHERE " ^ string_of_expr where
+	    ^ where_clause_of_optional_expr where
 
 	let exec del = exec_ignore (to_string del)
     end
@@ -540,6 +545,11 @@ module Make (C : Connection) = struct
 
     module Queryable (T : Table) = struct
 	
+	let select_q = Select.q ~table:T.name
+	let update_q = Update.q ~table:T.name
+	let insert_q = Insert.q ~table:T.name
+	let delete_q = Delete.q ~table:T.name
+
 	let t_of_callback cb =
 	    Array.fold_left
 		(fun t (AnyMapping (c, apply, _)) ->
@@ -549,9 +559,7 @@ module Make (C : Connection) = struct
 		T.column_mappings ;;
 	    
 	let select expr =
-	    Select.q
-		~table:T.name
-		T.columns
+	    select_q T.columns
 	    |> Select.where expr
 	    |> Select.exec
 	    |> Select.get_all t_of_callback
@@ -568,9 +576,7 @@ module Make (C : Connection) = struct
 		if idx > last_index then ()
 		else 
 		    (let t = Array.get ts idx
-		    in (Insert.q
-			~table:T.name 
-			(tagged_value_array_of_t t)
+		    in (insert_q (tagged_value_array_of_t t)
 			|> Insert.exec) ;
 			inner (idx + 1))
 	    in inner 0

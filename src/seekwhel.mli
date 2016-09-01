@@ -101,6 +101,7 @@ module Make : functor (C : Connection)
 		get_value : 'a. ('a column -> 'a) ;
 		is_null : 'a. ('a column -> bool)
 	}
+
 	type ('a, 'b) row_callback = 'a column_callback -> 'b
 
 	val get_all : ('a, 'b) row_callback
@@ -109,20 +110,18 @@ module Make : functor (C : Connection)
     end
 
     module Update : sig
-	type t
-	type target = any_tagged_value array
+	include Query with type target = any_tagged_value array
+	    and type result = unit
 
-	val q : table:string -> target -> bool_expr -> t
 	val where : bool_expr -> t -> t
-	val to_string : t -> string
-
-	val exec : t -> unit
     end
 
     module Delete : sig
 	type t
-	val q : table:string -> bool_expr -> t
+
+	val q : table:string -> t
 	val where : bool_expr -> t -> t
+
 	val to_string : t -> string
 	val exec : t -> unit
     end
@@ -145,6 +144,11 @@ module Make : functor (C : Connection)
     end
 
     module Queryable (T : Table) : sig
+	val select_q : Select.target -> Select.t
+	val update_q : Update.target -> Update.t
+	val insert_q : Insert.target -> Insert.t
+	val delete_q : Delete.t
+
 	val select : bool_expr -> T.t array 
 	val insert : T.t array -> unit
     end

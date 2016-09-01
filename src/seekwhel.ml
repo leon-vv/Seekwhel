@@ -285,6 +285,7 @@ module Make (C : Connection) = struct
 	| Int : int -> int slot
 	| Float : float -> float slot
 	| Text : string -> string slot
+	| Date : Calendar.t -> Calendar.t slot
 
     let string_of_slot (type a) (expr:a slot) : string =
 	match expr with
@@ -292,6 +293,7 @@ module Make (C : Connection) = struct
 	    | Int i -> string_of_int i
 	    | Float f -> string_of_float f
 	    | Text s -> "'" ^ (C.connection#escape_string s) ^ "'"
+	    | Date d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
 
     type bool_expr =
 	| Eq : 'a slot * 'a slot -> bool_expr
@@ -539,7 +541,8 @@ module Make (C : Connection) = struct
 	val empty : t
 	val name : string 
 	val columns : any_column array 
-	
+	val primary_key : any_column array
+
 	val column_mappings : t any_column_mapping array
     end
 
@@ -571,16 +574,45 @@ module Make (C : Connection) = struct
 		T.column_mappings ;;
 
 	let insert ts =
-	    let last_index = Array.length ts - 1
-	    in let rec inner idx =
-		if idx > last_index then ()
-		else 
-		    (let t = Array.get ts idx
-		    in (insert_q (tagged_value_array_of_t t)
-			|> Insert.exec) ;
-			inner (idx + 1))
-	    in inner 0
+	    Array.iter (fun t ->
+	    	insert_q (tagged_value_array_of_t t)
+			|> Insert.exec)
+		ts
 	
+	let equal_expr (type a) (col:a column) (v:a) : bool_expr =
+	    match col with
+		| Columni _ -> Eq ((Column col), (Int v))
+		| Columnf _ -> Eq ((Column col), (Float v))
+		| Columnt _ -> Eq ((Column col), (Text v))
+		| Columnd _ -> Eq ((Column col), (Date v))
+
+	let primary_mappings = 
+	    assert (Array.length T.primary_key != 0) ;
+	    let lst = Array.to_list T.column_mappings
+	    in List.filter (fun (AnyMapping (col, _, _)) ->
+		    Array.mem (AnyColumn col) T.primary_key) lst
+
+
+	let where_of_primary t =
+	    let equals = List.map (fun (AnyMapping (col, _, get)) ->
+		equal_expr col (get t)) primary_mappings
+	    in And equals
+	
+	let update ts =
+	    Array.iter (fun t ->
+		let expr = where_of_primary t
+		in update_q (tagged_value_array_of_t t)
+		    |> Update.where expr
+		    |> Update.exec)
+		ts
+
+	let delete ts =
+	    Array.iter (fun t ->
+		let expr = where_of_primary t
+		in delete_q
+		    |> Delete.where expr
+		    |> Delete.exec)
+		ts
     end
 
     module Join2 (T1 : Table)(T2 : Table) = struct

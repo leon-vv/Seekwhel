@@ -57,6 +57,7 @@ module Make : functor (C : Connection)
 	| Int : int -> int slot
 	| Float : float -> float slot
 	| Text : string -> string slot
+	| Date : Calendar.t -> Calendar.t slot
 
     type bool_expr =
 	| Eq : 'a slot * 'a slot -> bool_expr
@@ -139,18 +140,21 @@ module Make : functor (C : Connection)
 	val empty : t
 	val name : string 
 	val columns : any_column array 
-	
+	val primary_key : any_column array
+
 	val column_mappings : t any_column_mapping array
     end
 
     module Queryable (T : Table) : sig
 	val select_q : Select.target -> Select.t
-	val update_q : Update.target -> Update.t
 	val insert_q : Insert.target -> Insert.t
+	val update_q : Update.target -> Update.t
 	val delete_q : Delete.t
 
 	val select : bool_expr -> T.t array 
 	val insert : T.t array -> unit
+	val update : T.t array -> unit
+	val delete : T.t array -> unit
     end
 
     module Join2(T1 : Table)(T2 : Table) : sig

@@ -146,6 +146,7 @@ module Make : functor (C : Connection)
 
     module Queryable (T : Table) : sig
 	val select : bool_expr -> T.t array 
+	val insert : T.t array -> unit
     end
 
     module Join2(T1 : Table)(T2 : Table) : sig

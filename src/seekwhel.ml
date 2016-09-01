@@ -243,8 +243,15 @@ module Make (C : Connection) = struct
 	match c with
 	    | Columni _ -> int_of_string v
 	    | Columnf _ -> float_of_string v
-	    | Columnt _ -> C.connection#escape_string v
+	    | Columnt _ -> v
 	    | Columnd _ -> Printer.Calendar.from_string v
+    
+    let string_of_column_value (type a) (c:a column) (v:a): string =
+	match c with
+	    | Columni _ -> string_of_int v
+	    | Columnf _ -> string_of_float v
+	    | Columnt _ -> C.connection#escape_string v
+	    | Columnd _ -> Printer.Calendar.to_string v
 	
     type any_column =
 	| AnyColumn : 'a column -> any_column
@@ -548,6 +555,26 @@ module Make (C : Connection) = struct
 	    |> Select.where expr
 	    |> Select.exec
 	    |> Select.get_all t_of_callback
+	
+	let tagged_value_array_of_t t =
+	    Array.map
+		(fun (AnyMapping (col, _, get)) ->
+		    AnyTaggedValue (col, get t))
+		T.column_mappings ;;
+
+	let insert ts =
+	    let last_index = Array.length ts - 1
+	    in let rec inner idx =
+		if idx > last_index then ()
+		else 
+		    (let t = Array.get ts idx
+		    in (Insert.q
+			~table:T.name 
+			(tagged_value_array_of_t t)
+			|> Insert.exec) ;
+			inner (idx + 1))
+	    in inner 0
+	
     end
 
     module Join2 (T1 : Table)(T2 : Table) = struct

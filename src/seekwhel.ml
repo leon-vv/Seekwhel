@@ -135,7 +135,8 @@ module Make (C : Connection) = struct
 	])
 	
 
-    let rename_table (type a) (c:a column) new_name :a column =
+
+    let rec rename_table (type a) (c:a column) new_name :a column =
 	let rtis = rename_table_in_string
 	in match c with
 	    | Columni cn -> Columni (rtis cn new_name)
@@ -318,7 +319,7 @@ module Make (C : Connection) = struct
 
     let where_clause_of_optional_expr = function
 	| None -> ""
-	| Some expr -> string_of_expr expr
+	| Some expr -> " WHERE " ^ string_of_expr expr
 
     module type Query = sig
 	type t
@@ -369,7 +370,7 @@ module Make (C : Connection) = struct
 	| Some x -> combine_expr x new_expr )
 
     module Select = struct
-	type target = any_column array 
+	type target = string array
 	type result = Postgresql.result * target
 
 	type join_direction =
@@ -432,9 +433,7 @@ module Make (C : Connection) = struct
 		else get_index_where ~idx:(idx+1) pred arr)
 
 	let index_of_column target col =
-	    let column_equal c = (
-		string_of_column col = string_of_any_column c
-	    )
+	    let column_equal c = (string_of_column col = c)
 	    in get_index_where column_equal target
 
 	let column_value (qres, target) row col =
@@ -465,7 +464,7 @@ module Make (C : Connection) = struct
 		    })
 
 	let to_string {target; table; where; join} =
-	    let columns = String.concat "," Array.(to_list (map string_of_any_column target))
+	    let columns = String.concat "," (Array.to_list target)
 	    and sqi = safely_quote_identifier
 	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ sqi table
 	    and join_s = match join with
@@ -540,7 +539,6 @@ module Make (C : Connection) = struct
     
 	val empty : t
 	val name : string 
-	val columns : any_column array 
 	val primary_key : any_column array
 
 	val column_mappings : t any_column_mapping array
@@ -560,9 +558,12 @@ module Make (C : Connection) = struct
 		    in apply t v)
 		T.empty
 		T.column_mappings ;;
-	    
+	
+	let columns = Array.map (fun (AnyMapping (col, _, _))
+	    -> string_of_column col) T.column_mappings
+
 	let select expr =
-	    select_q T.columns
+	    select_q columns
 	    |> Select.where expr
 	    |> Select.exec
 	    |> Select.get_all t_of_callback
@@ -628,7 +629,7 @@ module Make (C : Connection) = struct
 	(* Todo: handle joining on the same table *)
 	(* Todo: handle multiple joins *)
 	let join dir ~on expr =
-	    let columns = Array.append T1.columns T2.columns
+	    let columns = Array.append Q1.columns Q2.columns
 	    in let result = Select.q
 		    ~table:T1.name
 		    columns
@@ -637,8 +638,8 @@ module Make (C : Connection) = struct
 		|> Select.exec
 	    and ordered_on = if Array.exists
 		(fun c ->
-		    string_of_any_column c = string_of_column (fst on))
-		T1.columns then on (* Correct order *)
+		    c = string_of_column (fst on))
+		Q1.columns then on (* Correct order *)
 
 		else (snd on, fst on) (* Swap *)
 	    in

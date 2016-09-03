@@ -85,7 +85,7 @@ module Make : functor (C : Connection)
 
     module Select : sig
 	include Query
-	    with type target = any_column array
+	    with type target = string array
 
 	val where : bool_expr -> t -> t
 
@@ -139,7 +139,6 @@ module Make : functor (C : Connection)
     
 	val empty : t
 	val name : string 
-	val columns : any_column array 
 	val primary_key : any_column array
 
 	val column_mappings : t any_column_mapping array
@@ -155,6 +154,8 @@ module Make : functor (C : Connection)
 	val insert : T.t array -> unit
 	val update : T.t array -> unit
 	val delete : T.t array -> unit
+
+	val columns : string array
     end
 
     module Join2(T1 : Table)(T2 : Table) : sig

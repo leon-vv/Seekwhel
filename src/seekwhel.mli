@@ -26,12 +26,16 @@ end
 module Make : functor (C : Connection)
     -> sig
 
-
     type 'a column =
 	| Columni : string -> int column
 	| Columnf : string -> float column
 	| Columnt : string -> string column
 	| Columnd : string -> Calendar.t column
+	(* Nullable *)
+	| Columni_null : string -> (int option) column
+	| Columnf_null : string -> (float option) column
+	| Columnt_null : string -> (string option) column
+	| Columnd_null : string -> (Calendar.t option) column
 
     val sub_between_test : unit -> unit
     val split_string_around_dots_test : unit -> unit
@@ -53,11 +57,20 @@ module Make : functor (C : Connection)
 	| AnyTaggedValue : 'a tagged_value -> any_tagged_value
 
     type 'a slot =
+	(* Column *)
 	| Column : 'a column -> 'a slot
+	(* Values *)
 	| Int : int -> int slot
 	| Float : float -> float slot
 	| Text : string -> string slot
 	| Date : Calendar.t -> Calendar.t slot
+	(* Nullable values *)
+	| Null : ('a option) slot
+	| Int_null : int -> int option slot
+	| Float_null : float -> float option slot
+	| Text_null : string -> string option slot
+	| Date_null : Calendar.t -> Calendar.t option slot
+
 
     type bool_expr =
 	| Eq : 'a slot * 'a slot -> bool_expr

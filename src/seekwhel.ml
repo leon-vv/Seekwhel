@@ -16,8 +16,6 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-
-
 open CalendarLib 
 
 module type Connection = sig
@@ -60,6 +58,11 @@ module Make (C : Connection) = struct
 	| Columnf : string -> float column
 	| Columnt : string -> string column
 	| Columnd : string -> Calendar.t column
+	(* Nullable *)
+	| Columni_null : string -> (int option) column
+	| Columnf_null : string -> (float option) column
+	| Columnt_null : string -> (string option) column
+	| Columnd_null : string -> (Calendar.t option) column
 
     (* Retrieve the substring of s between
     i1 and i2 (excluding i1 and i2) *)
@@ -143,6 +146,11 @@ module Make (C : Connection) = struct
 	    | Columnf cn -> Columnf (rtis cn new_name)
 	    | Columnt cn -> Columnt (rtis cn new_name)
 	    | Columnd cn -> Columnd (rtis cn new_name)
+
+	    | Columni_null cn -> Columni_null (rtis cn new_name)
+	    | Columnf_null cn -> Columnf_null (rtis cn new_name)
+	    | Columnt_null cn -> Columnt_null (rtis cn new_name)
+	    | Columnd_null cn -> Columnd_null (rtis cn new_name)
 
     let ( <|| ) = rename_table
 
@@ -238,6 +246,11 @@ module Make (C : Connection) = struct
 	    | Columnf s -> s
 	    | Columnt s -> s
 	    | Columnd s -> s
+
+	    | Columni_null s -> s
+	    | Columnf_null s -> s
+	    | Columnt_null s -> s
+	    | Columnd_null s -> s
 	in safely_quote_column s
 	
     let column_value_of_string (type a) (c:a column) (v:string): a =
@@ -247,13 +260,26 @@ module Make (C : Connection) = struct
 	    | Columnt _ -> v
 	    | Columnd _ -> Printer.Calendar.from_string v
     
+	    | Columni_null _ -> Some (int_of_string v)
+	    | Columnf_null _ -> Some (float_of_string v)
+	    | Columnt_null _ -> Some v
+	    | Columnd_null _ -> Some (Printer.Calendar.from_string v)
+
     let string_of_column_value (type a) (c:a column) (v:a): string =
-	match c with
+	let maybe_null f v = match v with
+	    | None -> "NULL"
+	    | Some v -> f v
+	in match c with
 	    | Columni _ -> string_of_int v
 	    | Columnf _ -> string_of_float v
 	    | Columnt _ -> C.connection#escape_string v
 	    | Columnd _ -> Printer.Calendar.to_string v
-	
+
+	    | Columni_null _ -> maybe_null string_of_int v
+	    | Columnf_null _ -> maybe_null string_of_float v
+	    | Columnt_null _ -> maybe_null C.connection#escape_string v
+	    | Columnd_null _ -> maybe_null Printer.Calendar.to_string v
+	    	
     type any_column =
 	| AnyColumn : 'a column -> any_column
 
@@ -265,13 +291,9 @@ module Make (C : Connection) = struct
     type 'a tagged_value = 'a column * 'a;;
 
     let string_of_tagged_value (type a) (t:a tagged_value) =
-	let soc = string_of_column in
-	    let v = snd t
-	    in match (fst t) with
-		| Columni s as c -> (soc c, string_of_int v)
-		| Columnf s as c -> (soc c, string_of_float v)
-		| Columnt s as c -> (soc c, C.connection#escape_string v)
-		| Columnd s as c -> (soc c, Printer.Calendar.to_string v)
+	let col = fst t
+	and v = snd t
+	in (string_of_column col, string_of_column_value col v)
 
     type any_tagged_value =
 	| AnyTaggedValue : 'a tagged_value -> any_tagged_value ;;
@@ -282,19 +304,34 @@ module Make (C : Connection) = struct
 	    (Array.to_list arr) 
 
     type 'a slot =
+	(* Column *)
 	| Column : 'a column -> 'a slot
+	(* Values *)
 	| Int : int -> int slot
 	| Float : float -> float slot
 	| Text : string -> string slot
 	| Date : Calendar.t -> Calendar.t slot
+	(* Nullable values *)
+	| Null : ('a option) slot
+	| Int_null : int -> int option slot
+	| Float_null : float -> float option slot
+	| Text_null : string -> string option slot
+	| Date_null : Calendar.t -> Calendar.t option slot
 
     let string_of_slot (type a) (expr:a slot) : string =
 	match expr with
 	    | Column c -> string_of_column c
+
 	    | Int i -> string_of_int i
 	    | Float f -> string_of_float f
 	    | Text s -> "'" ^ (C.connection#escape_string s) ^ "'"
 	    | Date d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
+
+	    | Null -> "NULL"
+	    | Int_null i -> string_of_int i
+	    | Float_null f -> string_of_float f
+	    | Text_null s -> "'" ^ (C.connection#escape_string s) ^ "'"
+	    | Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
 
     type bool_expr =
 	| Eq : 'a slot * 'a slot -> bool_expr
@@ -581,18 +618,26 @@ module Make (C : Connection) = struct
 		ts
 	
 	let equal_expr (type a) (col:a column) (v:a) : bool_expr =
-	    match col with
-		| Columni _ -> Eq ((Column col), (Int v))
-		| Columnf _ -> Eq ((Column col), (Float v))
-		| Columnt _ -> Eq ((Column col), (Text v))
-		| Columnd _ -> Eq ((Column col), (Date v))
+	    let maybe_null v f =
+		match v with
+		| None -> Null
+		| Some v -> f v
+	    in match col with
+		| Columni _ -> Eq (Column col, Int v)
+		| Columnf _ -> Eq (Column col, Float v)
+		| Columnt _ -> Eq (Column col, Text v)
+		| Columnd _ -> Eq (Column col, Date v)
+
+		| Columni_null _ -> Eq (Column col, maybe_null v (fun v -> Int_null v))
+		| Columnf_null _ -> Eq (Column col, maybe_null v (fun v -> Float_null v))
+		| Columnt_null _ -> Eq (Column col, maybe_null v (fun v -> Text_null v))
+		| Columnd_null _ -> Eq (Column col, maybe_null v (fun v -> Date_null v))
 
 	let primary_mappings = 
 	    assert (Array.length T.primary_key != 0) ;
 	    let lst = Array.to_list T.column_mappings
 	    in List.filter (fun (AnyMapping (col, _, _)) ->
 		    Array.mem (AnyColumn col) T.primary_key) lst
-
 
 	let where_of_primary t =
 	    let equals = List.map (fun (AnyMapping (col, _, get)) ->

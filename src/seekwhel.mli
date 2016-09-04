@@ -156,6 +156,8 @@ module Make : functor (C : Connection)
 	val name : string 
 	val primary_key : string array
 
+	val default_columns : string array
+
 	val column_mappings : t any_column_mapping array
     end
 

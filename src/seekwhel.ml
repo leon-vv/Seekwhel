@@ -580,6 +580,8 @@ module Make (C : Connection) = struct
 	val name : string 
 	val primary_key : string array
 
+	val default_columns : string array
+
 	val column_mappings : t any_column_mapping array
     end
 
@@ -610,7 +612,9 @@ module Make (C : Connection) = struct
 	let tagged_value_array_of_t t =
 	    Array.map
 		(fun (AnyMapping (col, _, get)) ->
-		    ColumnValue (col, Value (get t)))
+		    if Array.mem (string_of_column col) T.default_columns
+			then ColumnValue (col, Default)
+			else ColumnValue (col, Value (get t)))
 		T.column_mappings ;;
 
 	let insert ts =

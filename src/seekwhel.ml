@@ -578,7 +578,7 @@ module Make (C : Connection) = struct
     
 	val empty : t
 	val name : string 
-	val primary_key : any_column array
+	val primary_key : string array
 
 	val column_mappings : t any_column_mapping array
     end
@@ -639,7 +639,7 @@ module Make (C : Connection) = struct
 	    assert (Array.length T.primary_key != 0) ;
 	    let lst = Array.to_list T.column_mappings
 	    in List.filter (fun (AnyMapping (col, _, _)) ->
-		    Array.mem (AnyColumn col) T.primary_key) lst
+		    Array.mem (string_of_column col) T.primary_key) lst
 
 	let where_of_primary t =
 	    let equals = List.map (fun (AnyMapping (col, _, get)) ->

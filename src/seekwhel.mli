@@ -51,10 +51,12 @@ module Make : functor (C : Connection)
     type any_column =
 	| AnyColumn : 'a column -> any_column
 
-    type 'a tagged_value = 'a column * 'a
+    type 'a target_value =
+	| Value of 'a
+	| Default
 
-    type any_tagged_value =
-	| AnyTaggedValue : 'a tagged_value -> any_tagged_value
+    type tagged_value =
+	| TaggedValue : 'a column * 'a target_value -> tagged_value
 
     type 'a slot =
 	(* Column *)
@@ -93,7 +95,7 @@ module Make : functor (C : Connection)
     end
 
     module Insert : Query
-	with type target = any_tagged_value array 
+	with type target = tagged_value array 
 	and type result = unit
 
     module Select : sig
@@ -124,7 +126,7 @@ module Make : functor (C : Connection)
     end
 
     module Update : sig
-	include Query with type target = any_tagged_value array
+	include Query with type target = tagged_value array
 	    and type result = unit
 
 	val where : bool_expr -> t -> t

@@ -287,20 +287,22 @@ module Make (C : Connection) = struct
     let string_of_any_column = function
 	| AnyColumn c -> string_of_column c
 
+    type 'a target_value =
+	| Value of 'a
+	| Default
 
-    type 'a tagged_value = 'a column * 'a;;
+    type tagged_value =
+	| TaggedValue : 'a column * 'a target_value -> tagged_value
 
-    let string_of_tagged_value (type a) (t:a tagged_value) =
-	let col = fst t
-	and v = snd t
-	in (string_of_column col, string_of_column_value col v)
+    let string_of_tagged_value (TaggedValue (col, v)) = 
+	(string_of_column col, match v with
+	    | Value v -> string_of_column_value col v
+	    | Default -> "DEFAULT")
 
-    type any_tagged_value =
-	| AnyTaggedValue : 'a tagged_value -> any_tagged_value ;;
 
     let stringify_any_tagged_value_array arr =
 	List.map
-	    (fun (AnyTaggedValue t) -> string_of_tagged_value t)
+	    string_of_tagged_value
 	    (Array.to_list arr) 
 
     type 'a slot =
@@ -374,7 +376,7 @@ module Make (C : Connection) = struct
     end
 
     module Insert = struct
-	type target = any_tagged_value array
+	type target = tagged_value array
 	type result = unit
 
 	type t = {
@@ -524,7 +526,7 @@ module Make (C : Connection) = struct
     end
 
     module Update = struct
-	type target = any_tagged_value array
+	type target = tagged_value array
 	type t = {
 	    target : target ;
 	    table : string ;
@@ -608,7 +610,7 @@ module Make (C : Connection) = struct
 	let tagged_value_array_of_t t =
 	    Array.map
 		(fun (AnyMapping (col, _, get)) ->
-		    AnyTaggedValue (col, get t))
+		    TaggedValue (col, Value (get t)))
 		T.column_mappings ;;
 
 	let insert ts =

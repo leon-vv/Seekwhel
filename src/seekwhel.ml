@@ -574,10 +574,10 @@ module Make (C : Connection) = struct
 	| AnyMapping : ('t, 'a) column_mapping -> 't any_column_mapping
 
     module type Table = sig
+	val name : string 
 	type t
     
 	val empty : t
-	val name : string 
 	val primary_key : string array
 
 	val default_columns : string array

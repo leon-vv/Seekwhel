@@ -323,7 +323,7 @@ module Make (C : Connection) = struct
 	    | Value v -> string_of_column_value col v
 	    | Default -> "DEFAULT")
 	
-    let stringify_any_tagged_value_array arr =
+    let stringify_column_and_value_array arr =
 	List.map
 	    string_of_column_and_value
 	    (Array.to_list arr) 
@@ -382,7 +382,7 @@ module Make (C : Connection) = struct
 	let q ~table target = {target; table}
 
 	let to_string {target; table} =
-	    let (columns, values) = List.split (stringify_any_tagged_value_array target)
+	    let (columns, values) = List.split (stringify_column_and_value_array target)
 	    in let column_part = String.concat "," columns
 	    and values_part = String.concat "," values
 	    in "INSERT INTO " ^ safely_quote_identifier table ^
@@ -534,7 +534,7 @@ module Make (C : Connection) = struct
 	    {query with where = (combine_optional_expr query.where expr)}
 
 	let to_string {target; table; where} =
-	    let target_s = stringify_any_tagged_value_array target
+	    let target_s = stringify_column_and_value_array target
 	    in let equals = List.map (fun (col, v) -> col ^ " = " ^ v) target_s
 	    in " UPDATE " ^ (safely_quote_identifier table) ^ " SET "
 	    ^ " ( " ^ (String.concat "," equals) ^ " ) "
@@ -604,7 +604,7 @@ module Make (C : Connection) = struct
 	    |> Select.exec
 	    |> Select.get_all t_of_callback
 	
-	let tagged_value_array_of_t t =
+	let column_value_array_of_t t =
 	    Array.map
 		(fun (AnyMapping (col, _, get)) ->
 		    if Array.mem (string_of_column col) T.default_columns
@@ -614,7 +614,7 @@ module Make (C : Connection) = struct
 
 	let insert ts =
 	    Array.iter (fun t ->
-	    	insert_q (tagged_value_array_of_t t)
+	    	insert_q (column_value_array_of_t t)
 			|> Insert.exec)
 		ts
 	
@@ -648,7 +648,7 @@ module Make (C : Connection) = struct
 	let update ts =
 	    Array.iter (fun t ->
 		let expr = where_of_primary t
-		in update_q (tagged_value_array_of_t t)
+		in update_q (column_value_array_of_t t)
 		    |> Update.where expr
 		    |> Update.exec)
 		ts

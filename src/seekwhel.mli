@@ -48,9 +48,6 @@ module Make : functor (C : Connection)
     val quote_identifier_test : unit -> unit
     val safely_quote_string_test : unit -> unit
 
-    type any_column =
-	| AnyColumn : 'a column -> any_column
-
     type 'a value =
 	| Value of 'a
 	| Default

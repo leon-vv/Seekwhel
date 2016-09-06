@@ -264,46 +264,10 @@ module Make (C : Connection) = struct
 	    | Columnf_null _ -> Some (float_of_string v)
 	    | Columnt_null _ -> Some v
 	    | Columnd_null _ -> Some (Printer.Calendar.from_string v)
-
-    let string_of_column_value (type a) (c:a column) (v:a): string =
-	let maybe_null f v = match v with
-	    | None -> "NULL"
-	    | Some v -> f v
-	in match c with
-	    | Columni _ -> string_of_int v
-	    | Columnf _ -> string_of_float v
-	    | Columnt _ -> C.connection#escape_string v
-	    | Columnd _ -> Printer.Calendar.to_string v
-
-	    | Columni_null _ -> maybe_null string_of_int v
-	    | Columnf_null _ -> maybe_null string_of_float v
-	    | Columnt_null _ -> maybe_null C.connection#escape_string v
-	    | Columnd_null _ -> maybe_null Printer.Calendar.to_string v
-	    	
-    type any_column =
-	| AnyColumn : 'a column -> any_column
-
-
-    let string_of_any_column = function
-	| AnyColumn c -> string_of_column c
-
+    	
     type 'a value =
 	| Value of 'a
 	| Default
-
-    type column_and_value =
-	| ColumnValue : 'a column * 'a value -> column_and_value
-
-    let string_of_column_and_value (ColumnValue (col, v)) = 
-	(string_of_column col, match v with
-	    | Value v -> string_of_column_value col v
-	    | Default -> "DEFAULT")
-
-
-    let stringify_any_tagged_value_array arr =
-	List.map
-	    string_of_column_and_value
-	    (Array.to_list arr) 
 
     type 'a slot =
 	(* Column *)
@@ -334,6 +298,37 @@ module Make (C : Connection) = struct
 	    | Float_null f -> string_of_float f
 	    | Text_null s -> "'" ^ (C.connection#escape_string s) ^ "'"
 	    | Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
+
+    type column_and_value =
+	| ColumnValue : 'a column * 'a value -> column_and_value
+
+    let string_of_column_value (type a) (c:a column) (v:a): string =
+	let maybe_null f v = match v with
+	    | None -> "NULL"
+	    | Some v -> f v
+	and sos = string_of_slot
+	in match c with
+	    | Columni _ -> sos (Int v)
+	    | Columnf _ -> sos (Float v)
+	    | Columnt _ -> sos (Text v)
+	    | Columnd _ -> sos (Date v)
+
+	    | Columni_null _ -> maybe_null (fun i -> sos (Int_null i)) v
+	    | Columnf_null _ -> maybe_null (fun f -> sos (Float_null f)) v
+	    | Columnt_null _ -> maybe_null (fun s -> sos (Text_null s)) v
+	    | Columnd_null _ -> maybe_null (fun d -> sos (Date_null d)) v
+
+    let string_of_column_and_value (ColumnValue (col, v)) = 
+	(string_of_column col, match v with
+	    | Value v -> string_of_column_value col v
+	    | Default -> "DEFAULT")
+	
+    let stringify_any_tagged_value_array arr =
+	List.map
+	    string_of_column_and_value
+	    (Array.to_list arr) 
+
+
 
     type bool_expr =
 	| Eq : 'a slot * 'a slot -> bool_expr

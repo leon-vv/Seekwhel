@@ -76,8 +76,8 @@ module Make : functor (C : Connection)
 	| Gt : 'a slot * 'a slot -> bool_expr
 	| Lt : 'a slot * 'a slot -> bool_expr
 	| Not : bool_expr -> bool_expr
-	| And : bool_expr list -> bool_expr
-	| Or : bool_expr list -> bool_expr
+	| And : bool_expr * bool_expr -> bool_expr
+	| Or : bool_expr * bool_expr -> bool_expr
 
     val string_of_expr : bool_expr -> string ;;
 

@@ -241,7 +241,7 @@ module Make (C : Connection) = struct
 	
 
     let string_of_column (type a) (c:a column) =
-	let s = match c with
+	match c with
 	    | Columni s -> s
 	    | Columnf s -> s
 	    | Columnt s -> s
@@ -251,7 +251,9 @@ module Make (C : Connection) = struct
 	    | Columnf_null s -> s
 	    | Columnt_null s -> s
 	    | Columnd_null s -> s
-	in safely_quote_column s
+
+    let quoted_string_of_column c = 
+	c |> string_of_column |> safely_quote_column
 	
     let column_value_of_string (type a) (c:a column) (v:string): a =
 	match c with
@@ -286,7 +288,7 @@ module Make (C : Connection) = struct
 
     let string_of_slot (type a) (expr:a slot) : string =
 	match expr with
-	    | Column c -> string_of_column c
+	    | Column c -> quoted_string_of_column c
 
 	    | Int i -> string_of_int i
 	    | Float f -> string_of_float f
@@ -335,21 +337,30 @@ module Make (C : Connection) = struct
 	| Gt : 'a slot * 'a slot -> bool_expr
 	| Lt : 'a slot * 'a slot -> bool_expr
 	| Not : bool_expr -> bool_expr
-	| And : bool_expr list -> bool_expr
-	| Or : bool_expr list -> bool_expr
+	| And : bool_expr * bool_expr -> bool_expr
+	| Or : bool_expr * bool_expr -> bool_expr
 
     let rec string_of_expr expr =
 	let s = string_of_slot
-	and map_join xs sep = 
-	    let strings = List.map (fun x -> "(" ^ string_of_expr x ^ ")") xs
-	    in String.concat sep strings
+	and expr_within_paren x = "(" ^ string_of_expr x ^ ")"
+	in let expr_around_separator x1 x2 sep =
+	    expr_within_paren x1 ^ sep ^ expr_within_paren x2
 	in match expr with
 	    | Eq (x1, x2) -> s x1 ^ " = " ^ s x2
 	    | Gt (x1, x2) -> s x1 ^ " > " ^ s x2
 	    | Lt (x1, x2) -> s x1 ^ " < " ^ s x2
 	    | Not x -> " not (" ^ (string_of_expr x) ^ ")"
-	    | And xs -> map_join xs " and "
-	    | Or xs -> map_join xs " or " ;;
+	    | And (x1, x2) -> expr_around_separator x1 x2 " AND "
+	    | Or (x1, x2) -> expr_around_separator x1 x2 " OR "
+    
+    let expr_of_expr_list = function
+	| x1::x2::rest ->
+	    Some (List.fold_left
+		(fun and_x new_x -> And (and_x, new_x))
+		(And (x1, x2))
+		rest)
+	| [x1] -> Some x1
+	| _ -> None (* Can't create an expression from an empty list *)
 
     let where_clause_of_optional_expr = function
 	| None -> ""
@@ -392,16 +403,10 @@ module Make (C : Connection) = struct
 	let exec ins = exec_ignore (to_string ins)
     end
 
-    (* Add new_expr to the expression expr *)
-    let combine_expr expr new_expr =
-	match expr with
-	    | (And xs) -> And (xs @ [new_expr])
-	    | x -> And [x ; new_expr]
-	    
     let combine_optional_expr expr new_expr =
 	Some (match expr with
 	| None -> new_expr
-	| Some x -> combine_expr x new_expr )
+	| Some x -> And (x, new_expr))
 
     module Select = struct
 	type target = string array
@@ -443,8 +448,8 @@ module Make (C : Connection) = struct
 	    fun ?abbr:(abbr=None) table_name direction ~on query ->
 		let join = match query.join with
 		    | None -> { direction; table_name = (table_name, abbr);
-			left_column = string_of_column (fst on); 
-			right_column = string_of_column (snd on);
+			left_column = quoted_string_of_column (fst on); 
+			right_column = quoted_string_of_column (snd on);
 		    }
 		    | Some _ -> failwith "Select already contains join"
 		in {query with join = Some join } 
@@ -467,7 +472,7 @@ module Make (C : Connection) = struct
 		else get_index_where ~idx:(idx+1) pred arr)
 
 	let index_of_column target col =
-	    let column_equal c = (string_of_column col = c)
+	    let column_equal c = (quoted_string_of_column col = c)
 	    in get_index_where column_equal target
 
 	let column_value (qres, target) row col =
@@ -530,6 +535,7 @@ module Make (C : Connection) = struct
 	type result = unit
 
 	let q ~table target = {target; table; where = None}
+
 	let where expr query =
 	    {query with where = (combine_optional_expr query.where expr)}
 
@@ -537,7 +543,7 @@ module Make (C : Connection) = struct
 	    let target_s = stringify_column_and_value_array target
 	    in let equals = List.map (fun (col, v) -> col ^ " = " ^ v) target_s
 	    in " UPDATE " ^ (safely_quote_identifier table) ^ " SET "
-	    ^ " ( " ^ (String.concat "," equals) ^ " ) "
+	    ^ String.concat "," equals
 	    ^ where_clause_of_optional_expr where
 
 	let exec upd = exec_ignore (to_string upd)
@@ -596,7 +602,7 @@ module Make (C : Connection) = struct
 		T.column_mappings ;;
 	
 	let columns = Array.map (fun (AnyMapping (col, _, _))
-	    -> string_of_column col) T.column_mappings
+	    -> quoted_string_of_column col) T.column_mappings
 
 	let select expr =
 	    select_q columns
@@ -607,7 +613,7 @@ module Make (C : Connection) = struct
 	let column_value_array_of_t t =
 	    Array.map
 		(fun (AnyMapping (col, _, get)) ->
-		    if Array.mem (string_of_column col) T.default_columns
+		    if Array.mem (quoted_string_of_column col) T.default_columns
 			then ColumnValue (col, Default)
 			else ColumnValue (col, Value (get t)))
 		T.column_mappings ;;
@@ -635,15 +641,25 @@ module Make (C : Connection) = struct
 		| Columnd_null _ -> Eq (Column col, maybe_null v (fun v -> Date_null v))
 
 	let primary_mappings = 
-	    assert (Array.length T.primary_key != 0) ;
-	    let lst = Array.to_list T.column_mappings
-	    in List.filter (fun (AnyMapping (col, _, _)) ->
-		    Array.mem (string_of_column col) T.primary_key) lst
+	    let lst = match Array.length T.primary_key with
+		| 0 -> failwith ("Seekwhel: primary key array cannot be empty
+		    (table name: " ^ T.name ^ ")")
+		| _ -> let lst = Array.to_list T.column_mappings
+		    in List.filter (fun (AnyMapping (col, _, _)) ->
+			Array.mem (string_of_column col) T.primary_key) lst
+	    in if List.length lst > 0 then lst
+		else failwith ("Seekwhel: a column mapping of the primary keys
+		    could not be found (table name: " ^ T.name ^ ")")
 
 	let where_of_primary t =
 	    let equals = List.map (fun (AnyMapping (col, _, get)) ->
 		equal_expr col (get t)) primary_mappings
-	    in And equals
+	    in let expr = expr_of_expr_list equals
+	    in match expr with
+		| Some x -> x
+		| None -> failwith "Trying to build where clause of primary keys; but 
+		    no primary keys where given" (* This exception can't happen
+		    because of the assertion made when assigning 'primary_mappings' *)
 	
 	let update ts =
 	    Array.iter (fun t ->
@@ -684,7 +700,7 @@ module Make (C : Connection) = struct
 		|> Select.exec
 	    and ordered_on = if Array.exists
 		(fun c ->
-		    c = string_of_column (fst on))
+		    c = quoted_string_of_column (fst on))
 		Q1.columns then on (* Correct order *)
 
 		else (snd on, fst on) (* Swap *)

@@ -120,6 +120,10 @@ module Make : functor (C : Connection)
 	val get_all : ('a, 'b) row_callback
 	    -> result
 	    -> 'b array
+
+	val get_first : ('a, 'b) row_callback
+	    -> result
+	    -> 'b option
     end
 
     module Update : sig
@@ -168,6 +172,13 @@ module Make : functor (C : Connection)
 	val insert : T.t array -> unit
 	val update : T.t array -> unit
 	val delete : T.t array -> unit
+
+	(* Non-essential helper stuff *)
+
+	val select_first : bool_expr -> T.t option
+
+	(* Will throw an error when more rows are returned *)
+	val select_unique : bool_expr -> T.t option
 
 	val columns : string array
     end

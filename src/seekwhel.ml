@@ -432,10 +432,19 @@ module Make (C : Connection) = struct
 	    target : target ;
 	    table: string ;
 	    where : bool_expr option ;
-	    join : join option
+	    join : join option ;
+	    limit : int option
 	}
 
-	let q ~table target = {target; table; where = None; join = None}
+	let q ~table target = {
+	    target ;
+	    table ;
+	    where = None ;
+	    join = None ;
+	    limit = None
+	}
+
+	let limit count query = { query with limit = Some count }
 
 	let where expr query = {query with where = (combine_optional_expr query.where expr)}
 
@@ -495,14 +504,35 @@ module Make (C : Connection) = struct
 
 	let n_rows (r:result) = (fst r)#ntuples
 
+	let column_callback_of_index (res:result) idx =
+	    {
+		get_value = (fun col -> column_value res idx col) ;
+		is_null = (fun col -> is_null res idx col )
+	    }
+	
+
 	let get_all callback (res:result) =
 	    Array.init (fst res)#ntuples (fun idx ->
-		    callback {
-			get_value = (fun col -> column_value res idx col) ;
-			is_null = (fun col -> is_null res idx col )
-		    })
+		    callback (column_callback_of_index res idx)) 
 
-	let to_string {target; table; where; join} =
+
+	let get_first callback (res:result) =
+	    match (fst res)#ntuples with
+		| 0 -> None
+		| _ -> Some (callback (column_callback_of_index res 0))
+	
+	let get_unique callback (res:result) =
+	    match (fst res)#ntuples with
+		| 0 -> None
+		| 1 -> Some (callback (column_callback_of_index res 0))
+		| _ -> failwith "Seekwhel: in function get_unique; select query
+		resulted in more than one row" 
+
+	let string_of_limit = function
+	    | None -> ""
+	    | Some n -> " LIMIT " ^ (string_of_int n)
+
+	let to_string {target; table; where; join; limit} =
 	    let columns = String.concat "," (Array.to_list target)
 	    and sqi = safely_quote_identifier
 	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ sqi table
@@ -515,7 +545,8 @@ module Make (C : Connection) = struct
 		    in string_of_direction direction ^ " JOIN " ^ name_part
 		    ^ " ON " ^ left_column ^ " = " ^ right_column
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
-	    in first_and_joined ^ (where_clause_of_optional_expr where)
+	    in first_and_joined ^ (where_clause_of_optional_expr where) ^ string_of_limit limit
+
 	
 	let exec sel =
 	    let res = C.connection#exec (to_string sel)
@@ -604,12 +635,32 @@ module Make (C : Connection) = struct
 	let columns = Array.map (fun (AnyMapping (col, _, _))
 	    -> quoted_string_of_column col) T.column_mappings
 
-	let select expr =
+	let select_query_of_expr expr =
 	    select_q columns
-	    |> Select.where expr
+		|> Select.where expr
+
+	let select expr =
+	    select_query_of_expr expr
 	    |> Select.exec
 	    |> Select.get_all t_of_callback
+
+	let result_of_expr_and_limit expr n =
+	    select_query_of_expr expr
+	    |> Select.limit n
+	    |> Select.exec
+
+	let select_first expr =
+	    result_of_expr_and_limit expr 1
+	    |> Select.get_first t_of_callback
 	
+	let select_unique expr =
+	    (* If a limit of 1 would be used, this function
+	    would never throw an exception, which it's supposed to
+	    do when the expr does not uniquely reference a row *)
+	    result_of_expr_and_limit expr 2
+	    |> Select.get_unique t_of_callback
+	    
+
 	let column_value_array_of_t t =
 	    Array.map
 		(fun (AnyMapping (col, _, get)) ->
@@ -676,6 +727,8 @@ module Make (C : Connection) = struct
 		    |> Delete.where expr
 		    |> Delete.exec)
 		ts
+	
+	    
     end
 
     module Join2 (T1 : Table)(T2 : Table) = struct

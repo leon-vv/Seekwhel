@@ -48,38 +48,54 @@ module Make : functor (C : Connection)
     val quote_identifier_test : unit -> unit
     val safely_quote_string_test : unit -> unit
 
-    type 'a value =
-	| Value of 'a
+	
+    type 'a expr =
+	(* Column *)
+	| Column : 'a column -> 'a expr
+
+	(* Values *)
+	| Int : int -> int expr
+	| Float : float -> float expr
+	| Text : string -> string expr
+	| Date : Calendar.t -> Calendar.t expr
+
+	(* Nullable values *)
+	| Null : ('a option) expr
+	| Int_null : int -> int option expr
+	| Float_null : float -> float option expr
+	| Text_null : string -> string option expr
+	| Date_null : Calendar.t -> Calendar.t option expr
+
+	(* Functions *)
+	| Random : float expr
+	| Sqrti : int expr -> float expr
+	| Sqrtf : float expr -> float expr
+	| Addi : int expr * int expr -> int expr
+	| Addf : float expr * float expr -> float expr
+
+	(* Boolean *)
+	| IsNull : ('a option) expr -> bool expr
+	| Eq : 'a expr * 'a expr -> bool expr
+	| Gt : 'a expr * 'a expr -> bool expr
+	| Lt : 'a expr * 'a expr -> bool expr
+	| Not : bool expr -> bool expr
+	| And : bool expr * bool expr -> bool expr
+	| Or : bool expr * bool expr -> bool expr
+
+    val string_of_expr : 'a expr -> string
+
+    val expr_of_value : 'a -> 'a column -> 'a expr
+	
+    type 'a expr_or_default =
+	| Expr of 'a expr
 	| Default
 
-    type column_and_value =
-	| ColumnValue : 'a column * 'a value -> column_and_value
+    type column_eq =
+	| ColumnEq : 'a column * 'a expr -> column_eq
 
-    type 'a slot =
-	(* Column *)
-	| Column : 'a column -> 'a slot
-	(* Values *)
-	| Int : int -> int slot
-	| Float : float -> float slot
-	| Text : string -> string slot
-	| Date : Calendar.t -> Calendar.t slot
-	(* Nullable values *)
-	| Null : ('a option) slot
-	| Int_null : int -> int option slot
-	| Float_null : float -> float option slot
-	| Text_null : string -> string option slot
-	| Date_null : Calendar.t -> Calendar.t option slot
+    type column_eq_default =
+	| ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
 
-
-    type bool_expr =
-	| Eq : 'a slot * 'a slot -> bool_expr
-	| Gt : 'a slot * 'a slot -> bool_expr
-	| Lt : 'a slot * 'a slot -> bool_expr
-	| Not : bool_expr -> bool_expr
-	| And : bool_expr * bool_expr -> bool_expr
-	| Or : bool_expr * bool_expr -> bool_expr
-
-    val string_of_expr : bool_expr -> string ;;
 
     module type Query = sig
 	type t
@@ -92,14 +108,14 @@ module Make : functor (C : Connection)
     end
 
     module Insert : Query
-	with type target = column_and_value array 
+	with type target = column_eq_default array 
 	and type result = unit
 
     module Select : sig
 	include Query
 	    with type target = string array
 
-	val where : bool_expr -> t -> t
+	val where : bool expr-> t -> t
 
 	type join_direction =
 	    | Left | Inner | Right
@@ -127,17 +143,17 @@ module Make : functor (C : Connection)
     end
 
     module Update : sig
-	include Query with type target = column_and_value array
+	include Query with type target = column_eq_default array
 	    and type result = unit
 
-	val where : bool_expr -> t -> t
+	val where : bool expr -> t -> t
     end
 
     module Delete : sig
 	type t
 
 	val q : table:string -> t
-	val where : bool_expr -> t -> t
+	val where : bool expr -> t -> t
 
 	val to_string : t -> string
 	val exec : t -> unit
@@ -168,17 +184,17 @@ module Make : functor (C : Connection)
 	val update_q : Update.target -> Update.t
 	val delete_q : Delete.t
 
-	val select : bool_expr -> T.t array 
+	val select : bool expr -> T.t array 
 	val insert : T.t array -> unit
 	val update : T.t array -> unit
 	val delete : T.t array -> unit
 
 	(* Non-essential helper stuff *)
 
-	val select_first : bool_expr -> T.t option
+	val select_first : bool expr -> T.t option
 
 	(* Will throw an error when more rows are returned *)
-	val select_unique : bool_expr -> T.t option
+	val select_unique : bool expr -> T.t option
 
 	val columns : string array
     end
@@ -193,12 +209,12 @@ module Make : functor (C : Connection)
 	val join :
 	    Select.join_direction
 	    -> on:('a column * 'a column)
-	    -> bool_expr
+	    -> bool expr
 	    -> ((T1.t, T2.t) join_result) array
 	
 	val inner_join :
 	    on:('a column * 'a column)
-	    -> bool_expr
+	    -> bool expr
 	    -> (T1.t * T2.t) array
     end
 end

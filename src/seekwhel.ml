@@ -138,7 +138,6 @@ module Make (C : Connection) = struct
 	])
 	
 
-
     let rec rename_table (type a) (c:a column) new_name :a column =
 	let rtis = rename_table_in_string
 	in match c with
@@ -216,7 +215,7 @@ module Make (C : Connection) = struct
 	    ("\"a\"", "\"a\"")
 	]
 	
-	    
+
     (* This check shouldn't be neccessary. Identifiers (table
     and column names) should be static and thus not
     vulnerable to injections.  Still, somewhere, someone 
@@ -267,91 +266,153 @@ module Make (C : Connection) = struct
 	    | Columnt_null _ -> Some v
 	    | Columnd_null _ -> Some (Printer.Calendar.from_string v)
     	
-    type 'a value =
-	| Value of 'a
+    type 'a expr =
+	(* Column *)
+	| Column : 'a column -> 'a expr
+
+	(* Values *)
+	| Int : int -> int expr
+	| Float : float -> float expr
+	| Text : string -> string expr
+	| Date : Calendar.t -> Calendar.t expr
+
+	(* Nullable values *)
+	| Null : ('a option) expr
+	| Int_null : int -> int option expr
+	| Float_null : float -> float option expr
+	| Text_null : string -> string option expr
+	| Date_null : Calendar.t -> Calendar.t option expr
+
+	(* Functions *)
+	| Random : float expr
+	| Sqrti : int expr -> float expr
+	| Sqrtf : float expr -> float expr
+	| Addi : int expr * int expr -> int expr
+	| Addf : float expr * float expr -> float expr
+
+	(* Boolean *)
+	| IsNull : ('a option) expr -> bool expr
+	| Eq : 'a expr * 'a expr -> bool expr
+	| Gt : 'a expr * 'a expr -> bool expr
+	| Lt : 'a expr * 'a expr -> bool expr
+	| Not : bool expr -> bool expr
+	| And : bool expr * bool expr -> bool expr
+	| Or : bool expr * bool expr -> bool expr
+
+    let rec string_of_expr : type a. a expr -> string =
+	fun expr ->
+	    let soe : type a. a expr -> string = string_of_expr
+
+	    (* within parentheses *)
+	    and wp s = "(" ^ s ^ ")"
+
+	    (* expr within parentheses *)
+	    in let expr_wp : type a. a expr -> string  = fun x -> wp (soe x)
+
+	    (* expr around separator *)
+	    in let eas x1 x2 sep = expr_wp x1 ^ sep ^ expr_wp x2
+
+	    in match expr with
+		| Column c -> quoted_string_of_column c
+
+		| Int i -> string_of_int i
+		| Float f -> string_of_float f
+		| Text s -> "'" ^ (C.connection#escape_string s) ^ "'"
+		| Date d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
+
+		| Null -> "NULL"
+		| Int_null i -> string_of_int i
+		| Float_null f -> string_of_float f
+		| Text_null s -> "'" ^ (C.connection#escape_string s) ^ "'"
+		| Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
+
+		| Random -> "random()"
+		| Sqrti x -> "|/" ^ (wp (string_of_expr x))
+		| Sqrtf x -> "|/" ^ (wp (string_of_expr x))
+		| Addi (x1, x2) -> eas x1 x2 " + "
+		| Addf (x1, x2) -> eas x1 x2 " + "
+
+		| IsNull x -> soe x ^ " is null "
+		| Eq (x1, x2) -> eas x1 x2 " = "
+		| Gt (x1, x2) -> eas x1 x2 " > "
+		| Lt (x1, x2) -> eas x1 x2 " < "
+		| Not x -> " not " ^ expr_wp x
+		| And (x1, x2) -> eas x1 x2 " AND "
+		| Or (x1, x2) -> eas x1 x2 " OR "
+
+    let expr_of_value : type a. a -> a column -> a expr
+	= fun val_ col -> 
+	let maybe_null val_ f = match val_ with
+	    | None -> Null
+	    | Some v -> f v
+	in match col with
+	| Columni _ -> Int val_
+	| Columnf _ -> Float val_
+	| Columnt _ -> Text val_
+	| Columnd _ -> Date val_
+
+	| Columni_null _ -> maybe_null val_ (fun v -> Int_null v)
+	| Columnf_null _ -> maybe_null val_ (fun v -> Float_null v)
+	| Columnt_null _ -> maybe_null val_ (fun v -> Text_null v)
+	| Columnd_null _ -> maybe_null val_ (fun v -> Date_null v)
+	
+    type 'a expr_or_default =
+	| Expr of 'a expr
 	| Default
 
-    type 'a slot =
-	(* Column *)
-	| Column : 'a column -> 'a slot
-	(* Values *)
-	| Int : int -> int slot
-	| Float : float -> float slot
-	| Text : string -> string slot
-	| Date : Calendar.t -> Calendar.t slot
-	(* Nullable values *)
-	| Null : ('a option) slot
-	| Int_null : int -> int option slot
-	| Float_null : float -> float option slot
-	| Text_null : string -> string option slot
-	| Date_null : Calendar.t -> Calendar.t option slot
+    type column_eq =
+	| ColumnEq : 'a column * 'a expr -> column_eq
 
-    let string_of_slot (type a) (expr:a slot) : string =
-	match expr with
-	    | Column c -> quoted_string_of_column c
-
-	    | Int i -> string_of_int i
-	    | Float f -> string_of_float f
-	    | Text s -> "'" ^ (C.connection#escape_string s) ^ "'"
-	    | Date d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
-
-	    | Null -> "NULL"
-	    | Int_null i -> string_of_int i
-	    | Float_null f -> string_of_float f
-	    | Text_null s -> "'" ^ (C.connection#escape_string s) ^ "'"
-	    | Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
-
-    type column_and_value =
-	| ColumnValue : 'a column * 'a value -> column_and_value
+    type column_eq_default =
+	| ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
 
     let string_of_column_value (type a) (c:a column) (v:a): string =
 	let maybe_null f v = match v with
 	    | None -> "NULL"
 	    | Some v -> f v
-	and sos = string_of_slot
+	and soe = string_of_expr
 	in match c with
-	    | Columni _ -> sos (Int v)
-	    | Columnf _ -> sos (Float v)
-	    | Columnt _ -> sos (Text v)
-	    | Columnd _ -> sos (Date v)
+	    | Columni _ -> soe (Int v)
+	    | Columnf _ -> soe (Float v)
+	    | Columnt _ -> soe (Text v)
+	    | Columnd _ -> soe (Date v)
 
-	    | Columni_null _ -> maybe_null (fun i -> sos (Int_null i)) v
-	    | Columnf_null _ -> maybe_null (fun f -> sos (Float_null f)) v
-	    | Columnt_null _ -> maybe_null (fun s -> sos (Text_null s)) v
-	    | Columnd_null _ -> maybe_null (fun d -> sos (Date_null d)) v
+	    | Columni_null _ -> maybe_null (fun i -> soe (Int_null i)) v
+	    | Columnf_null _ -> maybe_null (fun f -> soe (Float_null f)) v
+	    | Columnt_null _ -> maybe_null (fun s -> soe (Text_null s)) v
+	    | Columnd_null _ -> maybe_null (fun d -> soe (Date_null d)) v
 
-    let string_of_column_and_value (ColumnValue (col, v)) = 
-	(string_of_column col, match v with
-	    | Value v -> string_of_column_value col v
+    let string_of_column_and_opt_expr (ColumnEqDefault (col, opt_expr)) = 
+	(string_of_column col, match opt_expr with
+	    | Expr x -> string_of_expr x
 	    | Default -> "DEFAULT")
 	
-    let stringify_column_and_value_array arr =
+    let stringify_column_and_opt_expr_array arr =
 	List.map
-	    string_of_column_and_value
+	    string_of_column_and_opt_expr
 	    (Array.to_list arr) 
+    (* Begin test *)
 
+    let price_col = Columnf "price"
+    let stock_col = Columni "stock"
+    let name_col = Columnt "name"
+    let date_col = Columnd "date"
 
+    let eq = Eq (Column price_col, Float 10.0)
+    let eq_str = "\"price\" = 10.0"
 
-    type bool_expr =
-	| Eq : 'a slot * 'a slot -> bool_expr
-	| Gt : 'a slot * 'a slot -> bool_expr
-	| Lt : 'a slot * 'a slot -> bool_expr
-	| Not : bool_expr -> bool_expr
-	| And : bool_expr * bool_expr -> bool_expr
-	| Or : bool_expr * bool_expr -> bool_expr
+    let gt = Gt (Column stock_col, Int 5)
+    let gt_str = "\"stock\" > 5"
 
-    let rec string_of_expr expr =
-	let s = string_of_slot
-	and expr_within_paren x = "(" ^ string_of_expr x ^ ")"
-	in let expr_around_separator x1 x2 sep =
-	    expr_within_paren x1 ^ sep ^ expr_within_paren x2
-	in match expr with
-	    | Eq (x1, x2) -> s x1 ^ " = " ^ s x2
-	    | Gt (x1, x2) -> s x1 ^ " > " ^ s x2
-	    | Lt (x1, x2) -> s x1 ^ " < " ^ s x2
-	    | Not x -> " not (" ^ (string_of_expr x) ^ ")"
-	    | And (x1, x2) -> expr_around_separator x1 x2 " AND "
-	    | Or (x1, x2) -> expr_around_separator x1 x2 " OR "
+    let lt = Lt (Text "def", Column name_col)
+    let lt_str = "'def' < \"name\""
+    
+    let not_eq = Not eq
+
+    let string_of_expr_test () =
+	test1
+
+    (* End test *)
     
     let expr_of_expr_list = function
 	| x1::x2::rest ->
@@ -378,11 +439,11 @@ module Make (C : Connection) = struct
 
     module type WhereQuery = sig
 	include Query
-	val where : bool_expr -> t -> t ;;
+	val where : bool expr -> t -> t ;;
     end
 
     module Insert = struct
-	type target = column_and_value array
+	type target = column_eq_default array
 	type result = unit
 
 	type t = {
@@ -393,7 +454,8 @@ module Make (C : Connection) = struct
 	let q ~table target = {target; table}
 
 	let to_string {target; table} =
-	    let (columns, values) = List.split (stringify_column_and_value_array target)
+	    let (columns, values) =
+		List.split (stringify_column_and_opt_expr_array target)
 	    in let column_part = String.concat "," columns
 	    and values_part = String.concat "," values
 	    in "INSERT INTO " ^ safely_quote_identifier table ^
@@ -431,7 +493,7 @@ module Make (C : Connection) = struct
 	type t = {
 	    target : target ;
 	    table: string ;
-	    where : bool_expr option ;
+	    where : bool expr option ;
 	    join : join option ;
 	    limit : int option
 	}
@@ -557,11 +619,11 @@ module Make (C : Connection) = struct
     end
 
     module Update = struct
-	type target = column_and_value array
+	type target = column_eq_default array
 	type t = {
 	    target : target ;
 	    table : string ;
-	    where : bool_expr option
+	    where : bool expr option
 	}
 	type result = unit
 
@@ -571,7 +633,7 @@ module Make (C : Connection) = struct
 	    {query with where = (combine_optional_expr query.where expr)}
 
 	let to_string {target; table; where} =
-	    let target_s = stringify_column_and_value_array target
+	    let target_s = stringify_column_and_opt_expr_array target
 	    in let equals = List.map (fun (col, v) -> col ^ " = " ^ v) target_s
 	    in " UPDATE " ^ (safely_quote_identifier table) ^ " SET "
 	    ^ String.concat "," equals
@@ -584,7 +646,7 @@ module Make (C : Connection) = struct
     module Delete = struct
 	type t = {
 	    table: string ;
-	    where : bool_expr option
+	    where : bool expr option
 	}
 	let q ~table = {table; where = None}
 
@@ -660,13 +722,14 @@ module Make (C : Connection) = struct
 	    result_of_expr_and_limit expr 2
 	    |> Select.get_unique t_of_callback
 	    
-
+	
 	let column_value_array_of_t t =
 	    Array.map
 		(fun (AnyMapping (col, _, get)) ->
-		    if Array.mem (quoted_string_of_column col) T.default_columns
-			then ColumnValue (col, Default)
-			else ColumnValue (col, Value (get t)))
+		    let val_ = get t
+		    in if Array.mem (quoted_string_of_column col) T.default_columns
+			then ColumnEqDefault (col, Default)
+			else ColumnEqDefault (col, Expr (expr_of_value val_ col)))
 		T.column_mappings ;;
 
 	let insert ts =
@@ -675,21 +738,8 @@ module Make (C : Connection) = struct
 			|> Insert.exec)
 		ts
 	
-	let equal_expr (type a) (col:a column) (v:a) : bool_expr =
-	    let maybe_null v f =
-		match v with
-		| None -> Null
-		| Some v -> f v
-	    in match col with
-		| Columni _ -> Eq (Column col, Int v)
-		| Columnf _ -> Eq (Column col, Float v)
-		| Columnt _ -> Eq (Column col, Text v)
-		| Columnd _ -> Eq (Column col, Date v)
-
-		| Columni_null _ -> Eq (Column col, maybe_null v (fun v -> Int_null v))
-		| Columnf_null _ -> Eq (Column col, maybe_null v (fun v -> Float_null v))
-		| Columnt_null _ -> Eq (Column col, maybe_null v (fun v -> Text_null v))
-		| Columnd_null _ -> Eq (Column col, maybe_null v (fun v -> Date_null v))
+	let equal_expr col v =
+	    Eq (Column col, expr_of_value v col)
 
 	let primary_mappings = 
 	    let lst = match Array.length T.primary_key with

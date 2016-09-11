@@ -299,6 +299,14 @@ module Make (C : Connection) = struct
 	| And : bool expr * bool expr -> bool expr
 	| Or : bool expr * bool expr -> bool expr
 
+    let is_and = function
+	| And _ -> true
+	| _ -> false
+
+    let is_or = function
+	| Or _ -> true
+	| _ -> false
+
     let rec string_of_expr : type a. a expr -> string =
 	fun expr ->
 	    let soe : type a. a expr -> string = string_of_expr
@@ -337,8 +345,18 @@ module Make (C : Connection) = struct
 		| Gt (x1, x2) -> eas x1 x2 " > "
 		| Lt (x1, x2) -> eas x1 x2 " < "
 		| Not x -> " not " ^ expr_wp x
-		| And (x1, x2) -> eas x1 x2 " AND "
-		| Or (x1, x2) -> eas x1 x2 " OR "
+
+		(* Some special checks to reduce parentheses
+		in ouput. This makes the query easier to read for humans,
+		which are the target specicies for this library. *)
+		| And (x1, x2) ->
+		    let left = if is_and x1 then soe x1 else expr_wp x1
+		    and right = if is_and x2 then soe x2 else expr_wp x2
+		    in left ^ " AND " ^ right
+		| Or (x1, x2) ->
+		    let left = if is_or x1 then soe x1 else expr_wp x1
+		    and right = if is_or x2 then soe x2 else expr_wp x2
+		    in left ^ " OR " ^ right
 
     let expr_of_value : type a. a -> a column -> a expr
 	= fun val_ col -> 

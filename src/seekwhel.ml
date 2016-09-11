@@ -284,6 +284,7 @@ module Make (C : Connection) = struct
 	| Date_null : Calendar.t -> Calendar.t option expr
 
 	(* Functions *)
+	| Coalesce : ('a option) expr * 'a expr -> 'a expr
 	| Random : float expr
 	| Sqrti : int expr -> float expr
 	| Sqrtf : float expr -> float expr
@@ -298,6 +299,22 @@ module Make (C : Connection) = struct
 	| Not : bool expr -> bool expr
 	| And : bool expr * bool expr -> bool expr
 	| Or : bool expr * bool expr -> bool expr
+    
+    (* Some helper functions to reduce parentheses in 'string_of_expr' *)
+
+    let is_simple_value_constructor (type a) (x: a expr) =
+	match x with
+	| Column _ -> true
+	| Int _ -> true
+	| Float _ -> true
+	| Text _ -> true
+	| Date _ -> true
+	| Null -> true
+	| Int_null _ -> true
+	| Float_null _ -> true
+	| Text_null _ -> true
+	| Date_null _ -> true
+	| _ -> false
 
     let is_and = function
 	| And _ -> true
@@ -317,8 +334,15 @@ module Make (C : Connection) = struct
 	    (* expr within parentheses *)
 	    in let expr_wp : type a. a expr -> string  = fun x -> wp (soe x)
 
-	    (* expr around separator *)
-	    in let eas x1 x2 sep = expr_wp x1 ^ sep ^ expr_wp x2
+	    (* not simple, string of expression.
+	    Add parentheses if x is not a simple expression *)
+	    in let nsim_soe x =
+		if is_simple_value_constructor x then soe x
+		else expr_wp x
+	    
+	    (* not simple, expr around separator,
+	    see explanation above *)
+	    in let nsim_eas x1 x2 sep = nsim_soe x1 ^ sep ^ nsim_soe x2
 
 	    in match expr with
 		| Column c -> quoted_string_of_column c
@@ -334,17 +358,18 @@ module Make (C : Connection) = struct
 		| Text_null s -> "'" ^ (C.connection#escape_string s) ^ "'"
 		| Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
 
-		| Random -> "random()"
-		| Sqrti x -> "|/" ^ (wp (string_of_expr x))
-		| Sqrtf x -> "|/" ^ (wp (string_of_expr x))
-		| Addi (x1, x2) -> eas x1 x2 " + "
-		| Addf (x1, x2) -> eas x1 x2 " + "
+		| Coalesce (x1, x2) -> "COALESCE(" ^ soe x1 ^ ", " ^ soe x2 ^ ")"
+		| Random -> "RANDOM()"
+		| Sqrti x -> "|/ " ^ nsim_soe x
+		| Sqrtf x -> "|/ " ^ nsim_soe x
+		| Addi (x1, x2) -> nsim_eas x1 x2 " + "
+		| Addf (x1, x2) -> nsim_eas x1 x2 " + "
 
-		| IsNull x -> soe x ^ " is null "
-		| Eq (x1, x2) -> eas x1 x2 " = "
-		| Gt (x1, x2) -> eas x1 x2 " > "
-		| Lt (x1, x2) -> eas x1 x2 " < "
-		| Not x -> " not " ^ expr_wp x
+		| IsNull x -> nsim_soe x ^ " IS NULL"
+		| Eq (x1, x2) -> nsim_eas x1 x2 " = "
+		| Gt (x1, x2) -> nsim_eas x1 x2 " > "
+		| Lt (x1, x2) -> nsim_eas x1 x2 " < "
+		| Not x -> "NOT " ^ expr_wp x
 
 		(* Some special checks to reduce parentheses
 		in ouput. This makes the query easier to read for humans,
@@ -409,28 +434,6 @@ module Make (C : Connection) = struct
 	List.map
 	    string_of_column_and_opt_expr
 	    (Array.to_list arr) 
-    (* Begin test *)
-
-    let price_col = Columnf "price"
-    let stock_col = Columni "stock"
-    let name_col = Columnt "name"
-    let date_col = Columnd "date"
-
-    let eq = Eq (Column price_col, Float 10.0)
-    let eq_str = "\"price\" = 10.0"
-
-    let gt = Gt (Column stock_col, Int 5)
-    let gt_str = "\"stock\" > 5"
-
-    let lt = Lt (Text "def", Column name_col)
-    let lt_str = "'def' < \"name\""
-    
-    let not_eq = Not eq
-
-    let string_of_expr_test () =
-	test1
-
-    (* End test *)
     
     let expr_of_expr_list = function
 	| x1::x2::rest ->

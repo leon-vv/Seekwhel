@@ -67,6 +67,7 @@ module Make : functor (C : Connection)
 	| Date_null : Calendar.t -> Calendar.t option expr
 
 	(* Functions *)
+	| Coalesce : ('a option) expr * 'a expr -> 'a expr
 	| Random : float expr
 	| Sqrti : int expr -> float expr
 	| Sqrtf : float expr -> float expr

@@ -1,4 +1,4 @@
-CAML_FLAGS = -g -I ./build \
+CAML_FLAGS = -g -I ./build -I . \
     -package postgresql -package calendar \
     -linkpkg -thread
 

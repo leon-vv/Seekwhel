@@ -557,17 +557,29 @@ module Make (C : Connection) = struct
 
 	type join = {
 	    direction : join_direction ;
-	    (* Table name and table abbreviation *)
+	    (* Table name and table abbreviation
+		SQL: <direction> JOIN <name> <abbr>
+		ON <left_column> = <right_column>
+		see string_of_join *)
 	    table_name : string * (string option) ;
 	    left_column : string ;
 	    right_column : string
 	}
 
+	let string_of_join {direction; table_name; left_column; right_column} =
+	    let name = safely_quote_identifier (fst table_name)
+	    and abbr = match (snd table_name) with
+		| Some abbr -> " " ^ safely_quote_identifier abbr
+		| None -> ""
+	    in let name_part = name ^ " " ^ abbr
+	    in string_of_direction direction ^ " JOIN " ^ name_part
+		^ " ON " ^ left_column ^ " = " ^ right_column
+
 	type t = {
 	    target : target ;
 	    table: string ;
 	    where : bool expr option ;
-	    join : join option ;
+	    join : join list ;
 	    limit : int option
 	}
 
@@ -575,7 +587,7 @@ module Make (C : Connection) = struct
 	    target ;
 	    table ;
 	    where = None ;
-	    join = None ;
+	    join = [] ;
 	    limit = None
 	}
 
@@ -590,13 +602,12 @@ module Make (C : Connection) = struct
 	    -> t -> t =
 
 	    fun ?abbr:(abbr=None) table_name direction ~on query ->
-		let join = match query.join with
-		    | None -> { direction; table_name = (table_name, abbr);
-			left_column = quoted_string_of_column (fst on); 
-			right_column = quoted_string_of_column (snd on);
-		    }
-		    | Some _ -> seekwhel_fail "Select already contains join"
-		in {query with join = Some join } 
+		    { query with join = query.join @ [{
+			direction; 
+			table_name = (table_name, abbr) ;
+			left_column = quoted_string_of_column (fst on) ;
+			right_column = quoted_string_of_column (snd on) 
+		    }]}
 
 	let join table_name dir ~on sel =
 	    abbr_join table_name dir ~on sel
@@ -671,14 +682,7 @@ module Make (C : Connection) = struct
 	    let columns = String.concat "," (Array.to_list target)
 	    and sqi = safely_quote_identifier
 	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ sqi table
-	    and join_s = match join with
-		| None -> ""
-		| Some {table_name; direction; left_column; right_column} ->
-		    let name_part = match table_name with
-			| (t, None) -> sqi t
-			| (t, Some abbr) -> sqi t ^ " " ^ sqi abbr
-		    in string_of_direction direction ^ " JOIN " ^ name_part
-		    ^ " ON " ^ left_column ^ " = " ^ right_column
+	    and join_s = String.concat "\n" (List.map string_of_join join)
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
 	    in first_and_joined ^ (where_clause_of_optional_expr where) ^ string_of_limit limit
 

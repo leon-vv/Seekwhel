@@ -31,11 +31,13 @@ module Make : functor (C : Connection)
 	| Columnf : string -> float column
 	| Columnt : string -> string column
 	| Columnd : string -> Calendar.t column
+	| Columnb : string -> bool column
 	(* Nullable *)
-	| Columni_null : string -> (int option) column
-	| Columnf_null : string -> (float option) column
-	| Columnt_null : string -> (string option) column
-	| Columnd_null : string -> (Calendar.t option) column
+	| Columni_null : string -> int option column
+	| Columnf_null : string -> float option column
+	| Columnt_null : string -> string option column
+	| Columnd_null : string -> Calendar.t option column
+	| Columnb_null : string -> bool option column
 
     val sub_between_test : unit -> unit
     val split_string_around_dots_test : unit -> unit
@@ -48,7 +50,6 @@ module Make : functor (C : Connection)
     val quote_identifier_test : unit -> unit
     val safely_quote_string_test : unit -> unit
 
-	
     type 'a expr =
 	(* Column *)
 	| Column : 'a column -> 'a expr
@@ -58,6 +59,7 @@ module Make : functor (C : Connection)
 	| Float : float -> float expr
 	| Text : string -> string expr
 	| Date : Calendar.t -> Calendar.t expr
+	| Bool : bool -> bool expr
 
 	(* Nullable values *)
 	| Null : ('a option) expr
@@ -65,6 +67,7 @@ module Make : functor (C : Connection)
 	| Float_null : float -> float option expr
 	| Text_null : string -> string option expr
 	| Date_null : Calendar.t -> Calendar.t option expr
+	| Bool_null : bool -> bool option expr
 
 	(* Functions *)
 	| Coalesce : ('a option) expr * 'a expr -> 'a expr
@@ -82,6 +85,7 @@ module Make : functor (C : Connection)
 	| Not : bool expr -> bool expr
 	| And : bool expr * bool expr -> bool expr
 	| Or : bool expr * bool expr -> bool expr
+    
 
     val string_of_expr : 'a expr -> string
 

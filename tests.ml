@@ -261,7 +261,7 @@ let run_integration_tests () =
 
 let _ = match Sys.argv with
     | [|_ ; "pure" |] -> ignore (run_pure_tests ())
-    | [|_ ; "integration" |] -> ignore (run_integration_tests ())
-    | _ -> print_endline "Please supply a command (either 'pure' or 'integration')"
+    | [|_ ; "database" |] -> ignore (run_integration_tests ())
+    | _ -> print_endline "Please supply a command (either 'pure' or 'database')"
 
     

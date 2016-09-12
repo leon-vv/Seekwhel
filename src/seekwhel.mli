@@ -26,18 +26,28 @@ end
 module Make : functor (C : Connection)
     -> sig
 
+
+    type 'a custom_column = {
+    	name : string ;
+	of_psql_string : string -> 'a ;
+	to_psql_string : 'a -> string
+    } ;;
+
+
     type 'a column =
 	| Columni : string -> int column
 	| Columnf : string -> float column
 	| Columnt : string -> string column
 	| Columnd : string -> Calendar.t column
 	| Columnb : string -> bool column
+	| Column_custom : 'a custom_column -> 'a column
 	(* Nullable *)
 	| Columni_null : string -> int option column
 	| Columnf_null : string -> float option column
 	| Columnt_null : string -> string option column
 	| Columnd_null : string -> Calendar.t option column
 	| Columnb_null : string -> bool option column
+	| Column_custom_null : 'a custom_column -> 'a option column
 
     val sub_between_test : unit -> unit
     val split_string_around_dots_test : unit -> unit
@@ -50,6 +60,11 @@ module Make : functor (C : Connection)
     val quote_identifier_test : unit -> unit
     val safely_quote_string_test : unit -> unit
 
+    type 'a custom_expr = {
+	value : 'a ;
+	to_psql_string : 'a -> string
+    }
+
     type 'a expr =
 	(* Column *)
 	| Column : 'a column -> 'a expr
@@ -60,6 +75,7 @@ module Make : functor (C : Connection)
 	| Text : string -> string expr
 	| Date : Calendar.t -> Calendar.t expr
 	| Bool : bool -> bool expr
+	| Custom : 'a custom_expr -> 'a expr
 
 	(* Nullable values *)
 	| Null : ('a option) expr
@@ -68,6 +84,7 @@ module Make : functor (C : Connection)
 	| Text_null : string -> string option expr
 	| Date_null : Calendar.t -> Calendar.t option expr
 	| Bool_null : bool -> bool option expr
+	| Custom_null : 'a custom_expr -> 'a option expr
 
 	(* Functions *)
 	| Coalesce : ('a option) expr * 'a expr -> 'a expr

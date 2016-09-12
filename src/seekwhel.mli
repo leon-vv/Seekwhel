@@ -26,6 +26,7 @@ end
 module Make : functor (C : Connection)
     -> sig
 
+    exception Seekwhel_error of string	
 
     type 'a custom_column = {
     	name : string ;

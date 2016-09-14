@@ -80,6 +80,11 @@ module Make : functor (C : Connection)
 	    to_psql_string : 'a -> string
 	}
 
+	type order_dir =
+		    | ASC
+		    | DESC
+
+
 	type 'a expr =
 	    (* Column *)
 	    | Column : 'a column -> 'a expr
@@ -138,6 +143,7 @@ module Make : functor (C : Connection)
 	    | AnyExpr : 'a expr -> any_expr
 
 
+	val string_of_order_by_list_test : unit -> unit
 	val string_of_expr : 'a expr -> string
 
 	val expr_of_value : 'a -> 'a column -> 'a expr
@@ -154,6 +160,8 @@ module Make : functor (C : Connection)
 
 
 	val where : bool expr-> t -> t
+
+	val order_by : order_dir -> string -> t -> t
 
 	type join_direction =
 	    | Left | Inner | Right

@@ -4,7 +4,7 @@
 #mod_use "src/seekwhel.ml";;
 #mod_use "tests.ml";;
 
-let soe = Tests.S.string_of_expr;;
+let soe = Tests.S.Select.string_of_expr;;
 module TS = Tests.String_of_expr_test;;
 
 module Seekwhel_test : Seekwhel.Connection = struct

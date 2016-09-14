@@ -102,7 +102,8 @@ let pure_tests =
 	("rename_table", rename_table_test);
 	("quote_ident", quote_identifier_test);
 	("safely_quote", safely_quote_string_test);
-	("string_of_expr", String_of_expr_test.string_of_expr_test)
+	("string_of_expr", String_of_expr_test.string_of_expr_test);
+	("string_of_order_by_list", Select.string_of_order_by_list_test)
     ] ;;
 
 let run_pure_tests () = List.fold_left
@@ -253,8 +254,7 @@ let run_integration_tests () =
 	QPerson.update [| { catarina with Person.parent = Some "Jhonny" } |] ;
 
 	let jhonny_option = QPerson.select_unique
-	    (Eq (Column Person.name_col, Text "Jhonny"))
-	in (match jhonny_option with
+	    (Eq (Column Person.name_col, Text "Jhonny")) in (match jhonny_option with
 	    | None -> failwith "Jhonny not found"
 	    | Some j -> assert (j = jhonny)) ;
 	

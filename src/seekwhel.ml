@@ -341,6 +341,10 @@ module Make (C : Connection) = struct
 	    to_psql_string : 'a -> string
 	}
 
+	type order_dir =
+	    | ASC
+	    | DESC
+
 	type 'a expr =
 	    (* Column *)
 	    | Column : 'a column -> 'a expr
@@ -397,18 +401,47 @@ module Make (C : Connection) = struct
 	    | AllLt : 'a expr * t -> bool expr
 	and any_expr = 
 	    | AnyExpr : 'a expr -> any_expr
+	and order_by = {
+	    dir : order_dir ;
+	    column : string 
+	}
 	and t = {
 	    target : target ;
 	    table: string ;
 	    where : bool expr option ;
 	    join : join list ;
-	    limit : int option
+	    limit : int option ;
+	    order_by : order_by list
 	}
 
 	let string_of_limit = function
 	    | None -> ""
 	    | Some n -> " LIMIT " ^ (string_of_int n)
 	(* Some helper functions to reduce parentheses in 'string_of_expr' *)
+
+	let string_of_order_dir = function
+	    | DESC -> "DESC"
+	    | ASC -> "ASC"
+
+	let string_of_order_by_list lst =
+	    let column_part = lst
+		|> List.map (fun {dir; column = col} -> safely_quote_column col ^ " " ^ string_of_order_dir dir)
+		|> String.concat ", "
+	    in if column_part = "" then ""
+		else "ORDER BY " ^ column_part
+	    
+	let string_of_order_by_list_test () =
+	    test1 string_of_order_by_list
+		[
+		    ([], "") ;
+		    ([{dir = ASC ; column = "stock"}], "ORDER BY \"stock\" ASC") ;
+		    ([{dir = ASC ; column = "stock"} ;
+		    {dir = DESC ; column = "abc.price"}],
+			"ORDER BY \"stock\" ASC, \"abc\".\"price\" DESC")
+		]
+
+
+		
 
 	let is_simple_value_constructor (type a) (x: a expr) =
 	    match x with
@@ -534,13 +567,16 @@ module Make (C : Connection) = struct
 	and where_clause_of_optional_expr = function
 	    | None -> ""
 	    | Some expr -> " WHERE " ^ string_of_expr expr
-	and to_string {target; table; where; join; limit} =
+	and to_string {target; table; where; join; limit; order_by} =
 	    let columns = String.concat "," (Array.to_list target)
 	    and sqi = safely_quote_identifier
 	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ sqi table
 	    and join_s = String.concat "\n" (List.map string_of_join join)
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
-	    in first_and_joined ^ (where_clause_of_optional_expr where) ^ string_of_limit limit
+	    in first_and_joined 
+	    ^ (where_clause_of_optional_expr where)
+	    ^ "\n" ^ string_of_order_by_list order_by
+	    ^ "\n" ^ string_of_limit limit
 
 
 	let expr_of_value : type a. a -> a column -> a expr
@@ -613,12 +649,14 @@ module Make (C : Connection) = struct
 		    rest)
 	    | [x1] -> Some x1
 	    | _ -> None (* Can't create an expression from an empty list *)
+
 	let q ~table target = {
 	    target ;
 	    table ;
 	    where = None ;
 	    join = [] ;
-	    limit = None
+	    limit = None ;
+	    order_by = []
 	}
 
 	let limit count query = { query with limit = Some count }
@@ -628,7 +666,9 @@ module Make (C : Connection) = struct
 	    | None -> new_expr
 	    | Some x -> And (x, new_expr))
 
-	let where expr query = {query with where = (combine_optional_expr query.where expr)}
+	let where expr sel = {sel with where = (combine_optional_expr sel.where expr)}
+
+	let order_by dir col sel = {sel with order_by = sel.order_by @ [{dir; column = col}]}
 
 	let abbr_join : ?abbr:(string option)
 	    -> string

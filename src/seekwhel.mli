@@ -122,6 +122,7 @@ module Make : functor (C : Connection)
 	    | Not : bool expr -> bool expr
 	    | And : bool expr * bool expr -> bool expr
 	    | Or : bool expr * bool expr -> bool expr
+	    | In : 'a expr * 'a expr list -> bool expr
 	
 	    (* Subqueries *)
 	    | Exists : t -> bool expr

@@ -382,6 +382,7 @@ module Make (C : Connection) = struct
 	    | Not : bool expr -> bool expr
 	    | And : bool expr * bool expr -> bool expr
 	    | Or : bool expr * bool expr -> bool expr
+	    | In : 'a expr * 'a expr list -> bool expr
 
 	    (* Subqueries *)
 	    | Exists : t -> bool expr
@@ -541,6 +542,10 @@ module Make (C : Connection) = struct
 			let left = if is_or x1 then soe x1 else expr_wp x1
 			and right = if is_or x2 then soe x2 else expr_wp x2
 			in left ^ " OR " ^ right
+		    | In (x1, xs) ->
+			nsim_soe x1 ^ " IN " ^ 
+			wp (String.concat ", " (List.map nsim_soe xs))
+
 
 		    | Exists sel -> to_string sel
 

@@ -161,6 +161,8 @@ module Make : functor (C : Connection)
 
 
 	val where : bool expr-> t -> t
+	val limit : int -> t -> t
+	val offset : int -> t -> t
 
 	val order_by : order_dir -> string -> t -> t
 

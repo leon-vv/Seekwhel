@@ -412,13 +412,17 @@ module Make (C : Connection) = struct
 	    where : bool expr option ;
 	    join : join list ;
 	    limit : int option ;
-	    order_by : order_by list
+	    order_by : order_by list ;
+	    offset : int option
 	}
 
 	let string_of_limit = function
 	    | None -> ""
 	    | Some n -> " LIMIT " ^ (string_of_int n)
-	(* Some helper functions to reduce parentheses in 'string_of_expr' *)
+
+	let string_of_offset = function
+	    | None -> ""
+	    | Some n -> "OFFSET " ^ (string_of_int n)
 
 	let string_of_order_dir = function
 	    | DESC -> "DESC"
@@ -572,7 +576,7 @@ module Make (C : Connection) = struct
 	and where_clause_of_optional_expr = function
 	    | None -> ""
 	    | Some expr -> " WHERE " ^ string_of_expr expr
-	and to_string {target; table; where; join; limit; order_by} =
+	and to_string {target; table; where; join; limit; order_by; offset} =
 	    let columns = String.concat "," (Array.to_list target)
 	    and sqi = safely_quote_identifier
 	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ sqi table
@@ -582,6 +586,7 @@ module Make (C : Connection) = struct
 	    ^ (where_clause_of_optional_expr where)
 	    ^ "\n" ^ string_of_order_by_list order_by
 	    ^ "\n" ^ string_of_limit limit
+	    ^ "\n" ^ string_of_offset offset
 
 
 	let expr_of_value : type a. a -> a column -> a expr
@@ -661,10 +666,13 @@ module Make (C : Connection) = struct
 	    where = None ;
 	    join = [] ;
 	    limit = None ;
-	    order_by = []
+	    order_by = [] ;
+	    offset = None
 	}
 
 	let limit count query = { query with limit = Some count }
+
+	let offset count query = { query with offset = Some count }
 
 	let combine_optional_expr expr new_expr =
 	    Some (match expr with

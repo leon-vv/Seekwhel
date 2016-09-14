@@ -295,211 +295,6 @@ module Make (C : Connection) = struct
 	    | Columnb_null _ -> Some (bool_of_string v)
 	    | Column_custom_null { of_psql_string } -> Some (of_psql_string v)
     	
-    type 'a custom_expr = {
-	value : 'a ;
-	to_psql_string : 'a -> string
-    }
-
-    type 'a expr =
-	(* Column *)
-	| Column : 'a column -> 'a expr
-
-	(* Values *)
-	| Int : int -> int expr
-	| Float : float -> float expr
-	| Text : string -> string expr
-	| Date : Calendar.t -> Calendar.t expr
-	| Bool : bool -> bool expr
-	| Custom : 'a custom_expr -> 'a expr
-
-	(* Nullable values *)
-	| Null : ('a option) expr
-	| Int_null : int -> int option expr
-	| Float_null : float -> float option expr
-	| Text_null : string -> string option expr
-	| Date_null : Calendar.t -> Calendar.t option expr
-	| Bool_null : bool -> bool option expr
-	| Custom_null : 'a custom_expr -> 'a option expr
-
-	(* Functions *)
-	| Coalesce : ('a option) expr * 'a expr -> 'a expr
-	| Random : float expr
-	| Sqrti : int expr -> float expr
-	| Sqrtf : float expr -> float expr
-	| Addi : int expr * int expr -> int expr
-	| Addf : float expr * float expr -> float expr
-
-	(* Boolean *)
-	| IsNull : ('a option) expr -> bool expr
-	| Eq : 'a expr * 'a expr -> bool expr
-	| Gt : 'a expr * 'a expr -> bool expr
-	| Lt : 'a expr * 'a expr -> bool expr
-	| Not : bool expr -> bool expr
-	| And : bool expr * bool expr -> bool expr
-	| Or : bool expr * bool expr -> bool expr
-    
-    (* Some helper functions to reduce parentheses in 'string_of_expr' *)
-
-    let is_simple_value_constructor (type a) (x: a expr) =
-	match x with
-	| Column _ -> true
-	| Int _ -> true
-	| Float _ -> true
-	| Text _ -> true
-	| Date _ -> true
-	| Null -> true
-	| Int_null _ -> true
-	| Float_null _ -> true
-	| Text_null _ -> true
-	| Date_null _ -> true
-	| _ -> false
-
-    let is_and = function
-	| And _ -> true
-	| _ -> false
-
-    let is_or = function
-	| Or _ -> true
-	| _ -> false
-
-    let rec string_of_expr : type a. a expr -> string =
-	fun expr ->
-	    let soe : type a. a expr -> string = string_of_expr
-
-	    (* within parentheses *)
-	    and wp s = "(" ^ s ^ ")"
-
-	    (* expr within parentheses *)
-	    in let expr_wp : type a. a expr -> string  = fun x -> wp (soe x)
-
-	    (* not simple, string of expression.
-	    Add parentheses if x is not a simple expression *)
-	    in let nsim_soe x =
-		if is_simple_value_constructor x then soe x
-		else expr_wp x
-	    
-	    (* not simple, expr around separator,
-	    see explanation above *)
-	    in let nsim_eas x1 x2 sep = nsim_soe x1 ^ sep ^ nsim_soe x2
-
-	    in match expr with
-		| Column c -> quoted_string_of_column c
-
-		| Int i -> string_of_int i
-		| Float f -> string_of_float f
-		| Text s -> "'" ^ (C.connection#escape_string s) ^ "'"
-		| Date d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
-		| Bool b -> string_of_bool b
-		| Custom {value; to_psql_string} -> to_psql_string value
-
-		| Null -> "NULL"
-		| Int_null i -> string_of_int i
-		| Float_null f -> string_of_float f
-		| Text_null s -> "'" ^ (C.connection#escape_string s) ^ "'"
-		| Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
-		| Bool_null b -> string_of_bool b
-		| Custom_null {value; to_psql_string} -> to_psql_string value
-
-		| Coalesce (x1, x2) -> "COALESCE(" ^ soe x1 ^ ", " ^ soe x2 ^ ")"
-		| Random -> "RANDOM()"
-		| Sqrti x -> "|/ " ^ nsim_soe x
-		| Sqrtf x -> "|/ " ^ nsim_soe x
-		| Addi (x1, x2) -> nsim_eas x1 x2 " + "
-		| Addf (x1, x2) -> nsim_eas x1 x2 " + "
-
-		| IsNull x -> nsim_soe x ^ " IS NULL"
-		| Eq (x1, x2) -> nsim_eas x1 x2 " = "
-		| Gt (x1, x2) -> nsim_eas x1 x2 " > "
-		| Lt (x1, x2) -> nsim_eas x1 x2 " < "
-		| Not x -> "NOT " ^ expr_wp x
-
-		(* Some special checks to reduce parentheses
-		in ouput. This makes the query easier to read for humans,
-		which are the target specicies for this library. *)
-		| And (x1, x2) ->
-		    let left = if is_and x1 then soe x1 else expr_wp x1
-		    and right = if is_and x2 then soe x2 else expr_wp x2
-		    in left ^ " AND " ^ right
-		| Or (x1, x2) ->
-		    let left = if is_or x1 then soe x1 else expr_wp x1
-		    and right = if is_or x2 then soe x2 else expr_wp x2
-		    in left ^ " OR " ^ right
-
-    let expr_of_value : type a. a -> a column -> a expr
-	= fun val_ col -> 
-	let maybe_null val_ f = match val_ with
-	    | None -> Null
-	    | Some v -> f v
-	in match col with
-	| Columni _ -> Int val_
-	| Columnf _ -> Float val_
-	| Columnt _ -> Text val_
-	| Columnd _ -> Date val_
-	| Columnb _ -> Bool val_
-	| Column_custom {to_psql_string} -> Custom { value = val_ ; to_psql_string }
-
-	| Columni_null _ -> maybe_null val_ (fun v -> Int_null v)
-	| Columnf_null _ -> maybe_null val_ (fun v -> Float_null v)
-	| Columnt_null _ -> maybe_null val_ (fun v -> Text_null v)
-	| Columnd_null _ -> maybe_null val_ (fun v -> Date_null v)
-	| Columnb_null _ -> maybe_null val_ (fun v -> Bool_null v)
-	| Column_custom_null {to_psql_string} ->
-	    maybe_null val_ (fun v -> Custom_null { value = v ; to_psql_string })
-
-	
-    type 'a expr_or_default =
-	| Expr of 'a expr
-	| Default
-
-    type column_eq =
-	| ColumnEq : 'a column * 'a expr -> column_eq
-
-    type column_eq_default =
-	| ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
-
-    let string_of_column_value (type a) (c:a column) (v:a): string =
-	let maybe_null f v = match v with
-	    | None -> "NULL"
-	    | Some v -> f v
-	and soe = string_of_expr
-	in match c with
-	    | Columni _ -> soe (Int v)
-	    | Columnf _ -> soe (Float v)
-	    | Columnt _ -> soe (Text v)
-	    | Columnd _ -> soe (Date v)
-	    | Columnb _ -> soe (Bool v)
-	    | Column_custom {to_psql_string} -> to_psql_string v
-
-	    | Columni_null _ -> maybe_null (fun i -> soe (Int_null i)) v
-	    | Columnf_null _ -> maybe_null (fun f -> soe (Float_null f)) v
-	    | Columnt_null _ -> maybe_null (fun s -> soe (Text_null s)) v
-	    | Columnd_null _ -> maybe_null (fun d -> soe (Date_null d)) v
-	    | Columnb_null _ -> maybe_null (fun b -> soe (Bool_null b)) v
-	    | Column_custom_null {to_psql_string} -> maybe_null (fun c ->  to_psql_string c) v
-
-    let string_of_column_and_opt_expr (ColumnEqDefault (col, opt_expr)) = 
-	(string_of_column col, match opt_expr with
-	    | Expr x -> string_of_expr x
-	    | Default -> "DEFAULT")
-	
-    let stringify_column_and_opt_expr_array arr =
-	List.map
-	    string_of_column_and_opt_expr
-	    (Array.to_list arr) 
-    
-    let expr_of_expr_list = function
-	| x1::x2::rest ->
-	    Some (List.fold_left
-		(fun and_x new_x -> And (and_x, new_x))
-		(And (x1, x2))
-		rest)
-	| [x1] -> Some x1
-	| _ -> None (* Can't create an expression from an empty list *)
-
-    let where_clause_of_optional_expr = function
-	| None -> ""
-	| Some expr -> " WHERE " ^ string_of_expr expr
-
     module type Query = sig
 	type t
 	type target
@@ -509,40 +304,6 @@ module Make (C : Connection) = struct
 	val to_string : t -> string
 	val exec : t -> result
     end
-
-    module type WhereQuery = sig
-	include Query
-	val where : bool expr -> t -> t ;;
-    end
-
-    module Insert = struct
-	type target = column_eq_default array
-	type result = unit
-
-	type t = {
-	    target : target ;
-	    table: string
-	} 
-
-	let q ~table target = {target; table}
-
-	let to_string {target; table} =
-	    let (columns, values) =
-		List.split (stringify_column_and_opt_expr_array target)
-	    in let column_part = String.concat "," columns
-	    and values_part = String.concat "," values
-	    in "INSERT INTO " ^ safely_quote_identifier table ^
-		" ( " ^ column_part ^ " ) " ^
-		" VALUES ( " ^ values_part ^ " ) "
-	
-	let exec ins = exec_ignore (to_string ins)
-    end
-
-    let combine_optional_expr expr new_expr =
-	Some (match expr with
-	| None -> new_expr
-	| Some x -> And (x, new_expr))
-
     module Select = struct
 	type target = string array
 	type result = Postgresql.result * target
@@ -575,7 +336,68 @@ module Make (C : Connection) = struct
 	    in string_of_direction direction ^ " JOIN " ^ name_part
 		^ " ON " ^ left_column ^ " = " ^ right_column
 
-	type t = {
+	type 'a custom_expr = {
+	    value : 'a ;
+	    to_psql_string : 'a -> string
+	}
+
+	type 'a expr =
+	    (* Column *)
+	    | Column : 'a column -> 'a expr
+
+	    (* Values *)
+	    | Int : int -> int expr
+	    | Float : float -> float expr
+	    | Text : string -> string expr
+	    | Date : Calendar.t -> Calendar.t expr
+	    | Bool : bool -> bool expr
+	    | Custom : 'a custom_expr -> 'a expr
+
+	    (* Nullable values *)
+	    | Null : ('a option) expr
+	    | Int_null : int -> int option expr
+	    | Float_null : float -> float option expr
+	    | Text_null : string -> string option expr
+	    | Date_null : Calendar.t -> Calendar.t option expr
+	    | Bool_null : bool -> bool option expr
+	    | Custom_null : 'a custom_expr -> 'a option expr
+
+	    (* Functions *)
+	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
+	    | Random : float expr
+	    | Sqrti : int expr -> float expr
+	    | Sqrtf : float expr -> float expr
+	    | Addi : int expr * int expr -> int expr
+	    | Addf : float expr * float expr -> float expr
+
+	    (* Boolean *)
+	    | IsNull : ('a option) expr -> bool expr
+	    | Eq : 'a expr * 'a expr -> bool expr
+	    | Gt : 'a expr * 'a expr -> bool expr
+	    | Lt : 'a expr * 'a expr -> bool expr
+	    | Not : bool expr -> bool expr
+	    | And : bool expr * bool expr -> bool expr
+	    | Or : bool expr * bool expr -> bool expr
+
+	    (* Subqueries *)
+	    | Exists : t -> bool expr
+
+	    | AnyEq1 : 'a expr * t -> bool expr
+	    | AnyEq2 : 'a expr * 'a expr * t -> bool expr
+	    | AnyEqN : any_expr list * t -> bool expr
+
+	    | AnyGt : 'a expr * t -> bool expr
+	    | AnyLt : 'a expr * t -> bool expr
+
+	    | AllEq1 : 'a expr * t -> bool expr
+	    | AllEq2 : 'a expr * 'a expr * t -> bool expr
+	    | AllEqN : any_expr list * t -> bool expr
+
+	    | AllGt : 'a expr * t -> bool expr
+	    | AllLt : 'a expr * t -> bool expr
+	and any_expr = 
+	    | AnyExpr : 'a expr -> any_expr
+	and t = {
 	    target : target ;
 	    table: string ;
 	    where : bool expr option ;
@@ -583,6 +405,214 @@ module Make (C : Connection) = struct
 	    limit : int option
 	}
 
+	let string_of_limit = function
+	    | None -> ""
+	    | Some n -> " LIMIT " ^ (string_of_int n)
+	(* Some helper functions to reduce parentheses in 'string_of_expr' *)
+
+	let is_simple_value_constructor (type a) (x: a expr) =
+	    match x with
+	    | Column _ -> true
+	    | Int _ -> true
+	    | Float _ -> true
+	    | Text _ -> true
+	    | Date _ -> true
+	    | Null -> true
+	    | Int_null _ -> true
+	    | Float_null _ -> true
+	    | Text_null _ -> true
+	    | Date_null _ -> true
+	    | _ -> false
+
+	let is_and = function
+	    | And _ -> true
+	    | _ -> false
+
+	let is_or = function
+	    | Or _ -> true
+	    | _ -> false
+
+	let rec string_of_expr : type a. a expr -> string =
+	    fun expr ->
+		let soe = string_of_expr
+
+		(* within parentheses *)
+		and wp s = "(" ^ s ^ ")"
+
+		(* expr within parentheses *)
+		in let expr_wp : type a. a expr -> string  = fun x -> wp (soe x)
+
+		(* not simple, string of expression.
+		Add parentheses if x is not a simple expression *)
+		in let nsim_soe x =
+		    if is_simple_value_constructor x then soe x
+		    else expr_wp x
+		
+		(* not simple, expr around separator,
+		see explanation above *)
+		in let nsim_eas x1 x2 sep = nsim_soe x1 ^ sep ^ nsim_soe x2
+
+		and concat_any_expr xs = 
+		    xs
+			|> List.map (fun (AnyExpr x) -> nsim_soe x)
+			|> String.concat ", "
+			|> wp
+
+		(* select within parentheses *)
+		and select_wp s = s |> to_string |> wp
+
+		(* Separator between expression and select
+		subquery *)
+		in let sep_between_x_sel x sep sel =
+		    nsim_soe x ^ sep ^ select_wp sel
+
+		in match expr with
+		    | Column c -> quoted_string_of_column c
+
+		    | Int i -> string_of_int i
+		    | Float f -> string_of_float f
+		    | Text s -> "'" ^ (C.connection#escape_string s) ^ "'"
+		    | Date d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
+		    | Bool b -> string_of_bool b
+		    | Custom {value; to_psql_string} -> to_psql_string value
+
+		    | Null -> "NULL"
+		    | Int_null i -> string_of_int i
+		    | Float_null f -> string_of_float f
+		    | Text_null s -> "'" ^ (C.connection#escape_string s) ^ "'"
+		    | Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
+		    | Bool_null b -> string_of_bool b
+		    | Custom_null {value; to_psql_string} -> to_psql_string value
+
+		    | Coalesce (x1, x2) -> "COALESCE(" ^ soe x1 ^ ", " ^ soe x2 ^ ")"
+		    | Random -> "RANDOM()"
+		    | Sqrti x -> "|/ " ^ nsim_soe x
+		    | Sqrtf x -> "|/ " ^ nsim_soe x
+		    | Addi (x1, x2) -> nsim_eas x1 x2 " + "
+		    | Addf (x1, x2) -> nsim_eas x1 x2 " + "
+
+		    | IsNull x -> nsim_soe x ^ " IS NULL"
+		    | Eq (x1, x2) -> nsim_eas x1 x2 " = "
+		    | Gt (x1, x2) -> nsim_eas x1 x2 " > "
+		    | Lt (x1, x2) -> nsim_eas x1 x2 " < "
+		    | Not x -> "NOT " ^ expr_wp x
+
+		    (* Some special checks to reduce parentheses
+		    in ouput. This makes the query easier to read for humans,
+		    which are the target specicies for this library. *)
+		    | And (x1, x2) ->
+			let left = if is_and x1 then soe x1 else expr_wp x1
+			and right = if is_and x2 then soe x2 else expr_wp x2
+			in left ^ " AND " ^ right
+		    | Or (x1, x2) ->
+			let left = if is_or x1 then soe x1 else expr_wp x1
+			and right = if is_or x2 then soe x2 else expr_wp x2
+			in left ^ " OR " ^ right
+
+		    | Exists sel -> to_string sel
+
+		    | AnyEq1 (x, select) ->
+			sep_between_x_sel x " = ANY " select
+		    | AnyEq2 (x1, x2, select) ->
+			wp (nsim_soe x1 ^ "," ^ nsim_soe x2) ^ " = ANY " ^ select_wp select
+		    | AnyEqN (lst, select) ->
+			concat_any_expr lst ^ " = ANY " ^ select_wp select
+
+		    | AnyGt (x, select) -> sep_between_x_sel x " > ANY " select
+		    | AnyLt (x, select) -> sep_between_x_sel x " < ANY " select
+
+		    | AllEq1 (x, select) ->
+			sep_between_x_sel x " = ALL" select
+		    | AllEq2 (x1, x2, select) ->
+			wp (nsim_soe x1 ^ "," ^ nsim_soe x2) ^ " = ALL " ^ select_wp select
+		    | AllEqN (lst, select) ->
+			concat_any_expr lst ^ " = ALL " ^ select_wp select
+
+		    | AllGt (x, select) -> sep_between_x_sel x " > ALL " select
+		    | AllLt (x, select) -> sep_between_x_sel x " < ALL " select
+
+	and where_clause_of_optional_expr = function
+	    | None -> ""
+	    | Some expr -> " WHERE " ^ string_of_expr expr
+	and to_string {target; table; where; join; limit} =
+	    let columns = String.concat "," (Array.to_list target)
+	    and sqi = safely_quote_identifier
+	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ sqi table
+	    and join_s = String.concat "\n" (List.map string_of_join join)
+	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
+	    in first_and_joined ^ (where_clause_of_optional_expr where) ^ string_of_limit limit
+
+
+	let expr_of_value : type a. a -> a column -> a expr
+	    = fun val_ col -> 
+	    let maybe_null val_ f = match val_ with
+		| None -> Null
+		| Some v -> f v
+	    in match col with
+	    | Columni _ -> Int val_
+	    | Columnf _ -> Float val_
+	    | Columnt _ -> Text val_
+	    | Columnd _ -> Date val_
+	    | Columnb _ -> Bool val_
+	    | Column_custom {to_psql_string} -> Custom { value = val_ ; to_psql_string }
+
+	    | Columni_null _ -> maybe_null val_ (fun v -> Int_null v)
+	    | Columnf_null _ -> maybe_null val_ (fun v -> Float_null v)
+	    | Columnt_null _ -> maybe_null val_ (fun v -> Text_null v)
+	    | Columnd_null _ -> maybe_null val_ (fun v -> Date_null v)
+	    | Columnb_null _ -> maybe_null val_ (fun v -> Bool_null v)
+	    | Column_custom_null {to_psql_string} ->
+		maybe_null val_ (fun v -> Custom_null { value = v ; to_psql_string })
+
+	    
+	type 'a expr_or_default =
+	    | Expr of 'a expr
+	    | Default
+
+	type column_eq =
+	    | ColumnEq : 'a column * 'a expr -> column_eq
+
+	type column_eq_default =
+	    | ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
+
+	let string_of_column_value (type a) (c:a column) (v:a): string =
+	    let maybe_null f v = match v with
+		| None -> "NULL"
+		| Some v -> f v
+	    and soe = string_of_expr
+	    in match c with
+		| Columni _ -> soe (Int v)
+		| Columnf _ -> soe (Float v)
+		| Columnt _ -> soe (Text v)
+		| Columnd _ -> soe (Date v)
+		| Columnb _ -> soe (Bool v)
+		| Column_custom {to_psql_string} -> to_psql_string v
+
+		| Columni_null _ -> maybe_null (fun i -> soe (Int_null i)) v
+		| Columnf_null _ -> maybe_null (fun f -> soe (Float_null f)) v
+		| Columnt_null _ -> maybe_null (fun s -> soe (Text_null s)) v
+		| Columnd_null _ -> maybe_null (fun d -> soe (Date_null d)) v
+		| Columnb_null _ -> maybe_null (fun b -> soe (Bool_null b)) v
+		| Column_custom_null {to_psql_string} -> maybe_null (fun c ->  to_psql_string c) v
+
+	let string_of_column_and_opt_expr (ColumnEqDefault (col, opt_expr)) = 
+	    (string_of_column col, match opt_expr with
+		| Expr x -> string_of_expr x
+		| Default -> "DEFAULT")
+	    
+	let stringify_column_and_opt_expr_array arr =
+	    List.map
+		string_of_column_and_opt_expr
+		(Array.to_list arr) 
+	
+	let expr_of_expr_list = function
+	    | x1::x2::rest ->
+		Some (List.fold_left
+		    (fun and_x new_x -> And (and_x, new_x))
+		    (And (x1, x2))
+		    rest)
+	    | [x1] -> Some x1
+	    | _ -> None (* Can't create an expression from an empty list *)
 	let q ~table target = {
 	    target ;
 	    table ;
@@ -592,6 +622,11 @@ module Make (C : Connection) = struct
 	}
 
 	let limit count query = { query with limit = Some count }
+
+	let combine_optional_expr expr new_expr =
+	    Some (match expr with
+	    | None -> new_expr
+	    | Some x -> And (x, new_expr))
 
 	let where expr query = {query with where = (combine_optional_expr query.where expr)}
 
@@ -674,19 +709,6 @@ module Make (C : Connection) = struct
 		| _ -> seekwhel_fail "Seekwhel: in function get_unique; select query
 		resulted in more than one row" 
 
-	let string_of_limit = function
-	    | None -> ""
-	    | Some n -> " LIMIT " ^ (string_of_int n)
-
-	let to_string {target; table; where; join; limit} =
-	    let columns = String.concat "," (Array.to_list target)
-	    and sqi = safely_quote_identifier
-	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ sqi table
-	    and join_s = String.concat "\n" (List.map string_of_join join)
-	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
-	    in first_and_joined ^ (where_clause_of_optional_expr where) ^ string_of_limit limit
-
-	
 	let exec sel =
 	    let res = C.connection#exec (to_string sel)
 	    in let st = res#status
@@ -695,26 +717,54 @@ module Make (C : Connection) = struct
 		else (res, sel.target)
     end
 
+    module type WhereQuery = sig
+	include Query
+	val where : bool Select.expr -> t -> t ;;
+    end
+
+    module Insert = struct
+	type target = Select.column_eq_default array
+	type result = unit
+
+	type t = {
+	    target : target ;
+	    table: string
+	} 
+
+	let q ~table target = {target; table}
+
+	let to_string {target; table} =
+	    let (columns, values) =
+		List.split (Select.stringify_column_and_opt_expr_array target)
+	    in let column_part = String.concat "," columns
+	    and values_part = String.concat "," values
+	    in "INSERT INTO " ^ safely_quote_identifier table ^
+		" ( " ^ column_part ^ " ) " ^
+		" VALUES ( " ^ values_part ^ " ) "
+	
+	let exec ins = exec_ignore (to_string ins)
+    end
+
     module Update = struct
-	type target = column_eq_default array
+	type target = Select.column_eq_default array
 	type t = {
 	    target : target ;
 	    table : string ;
-	    where : bool expr option
+	    where : bool Select.expr option
 	}
 	type result = unit
 
 	let q ~table target = {target; table; where = None}
 
 	let where expr query =
-	    {query with where = (combine_optional_expr query.where expr)}
+	    {query with where = (Select.combine_optional_expr query.where expr)}
 
 	let to_string {target; table; where} =
-	    let target_s = stringify_column_and_opt_expr_array target
+	    let target_s = Select.stringify_column_and_opt_expr_array target
 	    in let equals = List.map (fun (col, v) -> col ^ " = " ^ v) target_s
 	    in " UPDATE " ^ (safely_quote_identifier table) ^ " SET "
 	    ^ String.concat "," equals
-	    ^ where_clause_of_optional_expr where
+	    ^ Select.where_clause_of_optional_expr where
 
 	let exec upd = exec_ignore (to_string upd)
     end
@@ -723,16 +773,16 @@ module Make (C : Connection) = struct
     module Delete = struct
 	type t = {
 	    table: string ;
-	    where : bool expr option
+	    where : bool Select.expr option
 	}
 	let q ~table = {table; where = None}
 
 	let where expr query =
-	    {query with where = (combine_optional_expr query.where expr)}
+	    {query with where = (Select.combine_optional_expr query.where expr)}
 	
 	let to_string {table; where} =
 	    " DELETE " ^ " FROM " ^ safely_quote_identifier table
-	    ^ where_clause_of_optional_expr where
+	    ^ Select.where_clause_of_optional_expr where
 
 	let exec del = exec_ignore (to_string del)
     end
@@ -804,9 +854,9 @@ module Make (C : Connection) = struct
 	    Array.map
 		(fun (AnyMapping (col, _, get)) ->
 		    let val_ = get t
-		    in if Array.mem (quoted_string_of_column col) T.default_columns
+		    in Select.(if Array.mem (quoted_string_of_column col) T.default_columns
 			then ColumnEqDefault (col, Default)
-			else ColumnEqDefault (col, Expr (expr_of_value val_ col)))
+			else ColumnEqDefault (col, Expr (expr_of_value val_ col))))
 		T.column_mappings ;;
 
 	let insert ts =
@@ -816,7 +866,7 @@ module Make (C : Connection) = struct
 		ts
 	
 	let equal_expr col v =
-	    Eq (Column col, expr_of_value v col)
+	    Select.(Eq (Column col, expr_of_value v col))
 
 	let primary_mappings = 
 	    let lst = match Array.length T.primary_key with
@@ -832,7 +882,7 @@ module Make (C : Connection) = struct
 	let where_of_primary t =
 	    let equals = List.map (fun (AnyMapping (col, _, get)) ->
 		equal_expr col (get t)) primary_mappings
-	    in let expr = expr_of_expr_list equals
+	    in let expr = Select.expr_of_expr_list equals
 	    in match expr with
 		| Some x -> x
 		| None -> seekwhel_fail "Trying to build where clause of primary keys; but 

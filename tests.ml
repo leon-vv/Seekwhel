@@ -12,6 +12,7 @@ end
 
 module S = Seekwhel.Make(Seekwhel_test)
 open S
+open S.Select
 
 
 module String_of_expr_test = struct

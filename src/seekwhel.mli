@@ -61,65 +61,6 @@ module Make : functor (C : Connection)
     val quote_identifier_test : unit -> unit
     val safely_quote_string_test : unit -> unit
 
-    type 'a custom_expr = {
-	value : 'a ;
-	to_psql_string : 'a -> string
-    }
-
-    type 'a expr =
-	(* Column *)
-	| Column : 'a column -> 'a expr
-
-	(* Values *)
-	| Int : int -> int expr
-	| Float : float -> float expr
-	| Text : string -> string expr
-	| Date : Calendar.t -> Calendar.t expr
-	| Bool : bool -> bool expr
-	| Custom : 'a custom_expr -> 'a expr
-
-	(* Nullable values *)
-	| Null : ('a option) expr
-	| Int_null : int -> int option expr
-	| Float_null : float -> float option expr
-	| Text_null : string -> string option expr
-	| Date_null : Calendar.t -> Calendar.t option expr
-	| Bool_null : bool -> bool option expr
-	| Custom_null : 'a custom_expr -> 'a option expr
-
-	(* Functions *)
-	| Coalesce : ('a option) expr * 'a expr -> 'a expr
-	| Random : float expr
-	| Sqrti : int expr -> float expr
-	| Sqrtf : float expr -> float expr
-	| Addi : int expr * int expr -> int expr
-	| Addf : float expr * float expr -> float expr
-
-	(* Boolean *)
-	| IsNull : ('a option) expr -> bool expr
-	| Eq : 'a expr * 'a expr -> bool expr
-	| Gt : 'a expr * 'a expr -> bool expr
-	| Lt : 'a expr * 'a expr -> bool expr
-	| Not : bool expr -> bool expr
-	| And : bool expr * bool expr -> bool expr
-	| Or : bool expr * bool expr -> bool expr
-    
-
-    val string_of_expr : 'a expr -> string
-
-    val expr_of_value : 'a -> 'a column -> 'a expr
-	
-    type 'a expr_or_default =
-	| Expr of 'a expr
-	| Default
-
-    type column_eq =
-	| ColumnEq : 'a column * 'a expr -> column_eq
-
-    type column_eq_default =
-	| ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
-
-
     module type Query = sig
 	type t
 	type target
@@ -129,14 +70,88 @@ module Make : functor (C : Connection)
 	val to_string : t -> string
 	val exec : t -> result
     end
-
-    module Insert : Query
-	with type target = column_eq_default array 
-	and type result = unit
-
     module Select : sig
+
 	include Query
 	    with type target = string array
+
+	type 'a custom_expr = {
+	    value : 'a ;
+	    to_psql_string : 'a -> string
+	}
+
+	type 'a expr =
+	    (* Column *)
+	    | Column : 'a column -> 'a expr
+
+	    (* Values *)
+	    | Int : int -> int expr
+	    | Float : float -> float expr
+	    | Text : string -> string expr
+	    | Date : Calendar.t -> Calendar.t expr
+	    | Bool : bool -> bool expr
+	    | Custom : 'a custom_expr -> 'a expr
+
+	    (* Nullable values *)
+	    | Null : ('a option) expr
+	    | Int_null : int -> int option expr
+	    | Float_null : float -> float option expr
+	    | Text_null : string -> string option expr
+	    | Date_null : Calendar.t -> Calendar.t option expr
+	    | Bool_null : bool -> bool option expr
+	    | Custom_null : 'a custom_expr -> 'a option expr
+
+	    (* Functions *)
+	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
+	    | Random : float expr
+	    | Sqrti : int expr -> float expr
+	    | Sqrtf : float expr -> float expr
+	    | Addi : int expr * int expr -> int expr
+	    | Addf : float expr * float expr -> float expr
+
+	    (* Boolean *)
+	    | IsNull : ('a option) expr -> bool expr
+	    | Eq : 'a expr * 'a expr -> bool expr
+	    | Gt : 'a expr * 'a expr -> bool expr
+	    | Lt : 'a expr * 'a expr -> bool expr
+	    | Not : bool expr -> bool expr
+	    | And : bool expr * bool expr -> bool expr
+	    | Or : bool expr * bool expr -> bool expr
+	
+	    (* Subqueries *)
+	    | Exists : t -> bool expr
+
+	    | AnyEq1 : 'a expr * t -> bool expr
+	    | AnyEq2 : 'a expr * 'a expr * t -> bool expr
+	    | AnyEqN : any_expr list * t -> bool expr
+
+	    | AnyGt : 'a expr * t -> bool expr
+	    | AnyLt : 'a expr * t -> bool expr
+
+	    | AllEq1 : 'a expr * t -> bool expr
+	    | AllEq2 : 'a expr * 'a expr * t -> bool expr
+	    | AllEqN : any_expr list * t -> bool expr
+
+	    | AllGt : 'a expr * t -> bool expr
+	    | AllLt : 'a expr * t -> bool expr
+	and any_expr = 
+	    | AnyExpr : 'a expr -> any_expr
+
+
+	val string_of_expr : 'a expr -> string
+
+	val expr_of_value : 'a -> 'a column -> 'a expr
+	    
+	type 'a expr_or_default =
+	    | Expr of 'a expr
+	    | Default
+
+	type column_eq =
+	    | ColumnEq : 'a column * 'a expr -> column_eq
+
+	type column_eq_default =
+	    | ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
+
 
 	val where : bool expr-> t -> t
 
@@ -165,18 +180,23 @@ module Make : functor (C : Connection)
 	    -> 'b option
     end
 
+    module Insert : Query
+	with type target = Select.column_eq_default array 
+	and type result = unit
+
+
     module Update : sig
-	include Query with type target = column_eq_default array
+	include Query with type target = Select.column_eq_default array
 	    and type result = unit
 
-	val where : bool expr -> t -> t
+	val where : bool Select.expr -> t -> t
     end
 
     module Delete : sig
 	type t
 
 	val q : table:string -> t
-	val where : bool expr -> t -> t
+	val where : bool Select.expr -> t -> t
 
 	val to_string : t -> string
 	val exec : t -> unit
@@ -207,17 +227,17 @@ module Make : functor (C : Connection)
 	val update_q : Update.target -> Update.t
 	val delete_q : Delete.t
 
-	val select : bool expr -> T.t array 
+	val select : bool Select.expr -> T.t array 
 	val insert : T.t array -> unit
 	val update : T.t array -> unit
 	val delete : T.t array -> unit
 
 	(* Non-essential helper stuff *)
 
-	val select_first : bool expr -> T.t option
+	val select_first : bool Select.expr -> T.t option
 
 	(* Will throw an error when more rows are returned *)
-	val select_unique : bool expr -> T.t option
+	val select_unique : bool Select.expr -> T.t option
 
 	val columns : string array
     end
@@ -232,12 +252,12 @@ module Make : functor (C : Connection)
 	val join :
 	    Select.join_direction
 	    -> on:('a column * 'a column)
-	    -> bool expr
+	    -> bool Select.expr
 	    -> ((T1.t, T2.t) join_result) array
 	
 	val inner_join :
 	    on:('a column * 'a column)
-	    -> bool expr
+	    -> bool Select.expr
 	    -> (T1.t * T2.t) array
     end
 end

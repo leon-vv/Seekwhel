@@ -101,7 +101,7 @@ let pure_tests =
 	("rename_string", rename_table_in_string_test);
 	("rename_table", rename_table_test);
 	("quote_ident", quote_identifier_test);
-	("safely_quote", safely_quote_string_test);
+	("safely_quote_column", safely_quote_column_test);
 	("string_of_expr", String_of_expr_test.string_of_expr_test);
 	("string_of_order_by_list", Select.string_of_order_by_list_test)
     ] ;;

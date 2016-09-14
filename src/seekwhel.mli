@@ -59,7 +59,7 @@ module Make : functor (C : Connection)
     val rename_table_test : unit -> unit
     
     val quote_identifier_test : unit -> unit
-    val safely_quote_string_test : unit -> unit
+    val safely_quote_column_test : unit -> unit
 
     module type Query = sig
 	type t

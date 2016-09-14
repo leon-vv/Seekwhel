@@ -248,7 +248,7 @@ module Make (C : Connection) = struct
 	in let new_parts = List.map safely_quote_identifier parts
 	in String.concat "." new_parts
 
-    let safely_quote_string_test () =
+    let safely_quote_column_test () =
 	expect_exception safely_quote_column
 	    ["\""; "adc.d\"d"; "a\""] ;
 	test1 safely_quote_column

@@ -61,7 +61,6 @@ module Make (C : Connection) = struct
     	name : string ;
 	of_psql_string : string -> 'a ;
 	to_psql_string : 'a -> string
-
     } ;;
 
     type 'a column =
@@ -79,6 +78,21 @@ module Make (C : Connection) = struct
 	| Columnd_null : string -> Calendar.t option column
 	| Columnb_null : string -> bool option column
 	| Column_custom_null : 'a custom_column -> 'a option column
+    
+    (* of_string function for each type *)
+    (* int_of_string, float_of_string, bool_of_string *)
+    let date_of_string = Printer.Calendar.from_string
+    
+    let maybe_null of_string = function
+	| "NULL" -> None
+	| s -> Some (of_string s)
+
+    let int_null_of_string s = maybe_null int_of_string s
+    let float_null_of_string s = maybe_null float_of_string s
+    let string_null_of_string s = maybe_null (fun s -> s) s
+    let date_null_of_string s = maybe_null date_of_string s
+    let bool_null_of_string s = maybe_null bool_of_string s
+
 
     (* Retrieve the substring of s between
     i1 and i2 (excluding i1 and i2) *)
@@ -278,35 +292,32 @@ module Make (C : Connection) = struct
 
     let quoted_string_of_column c = 
 	c |> string_of_column |> safely_quote_column
-	
+
     let column_value_of_string (type a) (c:a column) (v:string): a =
 	match c with
 	    | Columni _ -> int_of_string v
 	    | Columnf _ -> float_of_string v
 	    | Columnt _ -> v
-	    | Columnd _ -> Printer.Calendar.from_string v
+	    | Columnd _ -> date_of_string v
 	    | Columnb _ -> bool_of_string v
 	    | Column_custom { of_psql_string } -> of_psql_string v
     
-	    | Columni_null _ -> Some (int_of_string v)
-	    | Columnf_null _ -> Some (float_of_string v)
-	    | Columnt_null _ -> Some v
-	    | Columnd_null _ -> Some (Printer.Calendar.from_string v)
-	    | Columnb_null _ -> Some (bool_of_string v)
+	    | Columni_null _ -> int_null_of_string v
+	    | Columnf_null _ -> float_null_of_string v
+	    | Columnt_null _ -> string_null_of_string v
+	    | Columnd_null _ -> date_null_of_string v
+	    | Columnb_null _ -> bool_null_of_string v
 	    | Column_custom_null { of_psql_string } -> Some (of_psql_string v)
-    	
+
     module type Query = sig
 	type t
-	type target
 	type result
 	
-	val q : table:string -> target -> t
 	val to_string : t -> string
 	val exec : t -> result
     end
+
     module Select = struct
-	type target = string array
-	type result = Postgresql.result * target
 
 	type join_direction =
 	    | Left | Inner | Right
@@ -338,9 +349,10 @@ module Make (C : Connection) = struct
 
 	type 'a custom_expr = {
 	    value : 'a ;
-	    to_psql_string : 'a -> string
+	    to_psql_string : 'a -> string ;
+	    of_psql_string : string -> 'a
 	}
-
+    
 	type order_dir =
 	    | ASC
 	    | DESC
@@ -406,6 +418,7 @@ module Make (C : Connection) = struct
 	    dir : order_dir ;
 	    column : string 
 	}
+	and target = any_expr array
 	and t = {
 	    target : target ;
 	    table: string ;
@@ -415,6 +428,8 @@ module Make (C : Connection) = struct
 	    order_by : order_by list ;
 	    offset : int option
 	}
+
+	type result = Postgresql.result * target
 
 	let string_of_limit = function
 	    | None -> ""
@@ -576,10 +591,16 @@ module Make (C : Connection) = struct
 	and where_clause_of_optional_expr = function
 	    | None -> ""
 	    | Some expr -> " WHERE " ^ string_of_expr expr
+	and string_of_target target =
+	    Array.(
+		map (fun (AnyExpr x) -> string_of_expr x) target
+		|> to_list
+		|> String.concat ", ")
+
 	and to_string {target; table; where; join; limit; order_by; offset} =
-	    let columns = String.concat "," (Array.to_list target)
+	    let target_part = string_of_target target
 	    and sqi = safely_quote_identifier
-	    in let first_part = " SELECT " ^ columns ^ " FROM " ^ sqi table
+	    in let first_part = " SELECT " ^ target_part ^ " FROM " ^ sqi table
 	    and join_s = String.concat "\n" (List.map string_of_join join)
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
 	    in first_and_joined 
@@ -600,15 +621,17 @@ module Make (C : Connection) = struct
 	    | Columnt _ -> Text val_
 	    | Columnd _ -> Date val_
 	    | Columnb _ -> Bool val_
-	    | Column_custom {to_psql_string} -> Custom { value = val_ ; to_psql_string }
+	    | Column_custom {to_psql_string; of_psql_string } ->
+		Custom { value = val_ ; to_psql_string ; of_psql_string }
 
 	    | Columni_null _ -> maybe_null val_ (fun v -> Int_null v)
 	    | Columnf_null _ -> maybe_null val_ (fun v -> Float_null v)
 	    | Columnt_null _ -> maybe_null val_ (fun v -> Text_null v)
 	    | Columnd_null _ -> maybe_null val_ (fun v -> Date_null v)
 	    | Columnb_null _ -> maybe_null val_ (fun v -> Bool_null v)
-	    | Column_custom_null {to_psql_string} ->
-		maybe_null val_ (fun v -> Custom_null { value = v ; to_psql_string })
+	    | Column_custom_null {to_psql_string ; of_psql_string } ->
+		maybe_null val_ (fun v ->
+		    Custom_null { value = v ; to_psql_string ; of_psql_string })
 
 	    
 	type 'a expr_or_default =
@@ -714,36 +737,76 @@ module Make (C : Connection) = struct
 		in if pred element then (Some idx)
 		else get_index_where ~idx:(idx+1) pred arr)
 
-	let index_of_column target col =
-	    let column_equal c = (quoted_string_of_column col = c)
-	    in get_index_where column_equal target
+	let index_of_expr target expr =
+	    get_index_where (fun x -> AnyExpr expr = x) target
+ 
+	let rec expression_value_of_string : type a. a expr -> string -> a = fun e s ->
+	    match e with
+	    | Column c -> column_value_of_string c s
+	    | Int _ -> int_of_string s 
+	    | Float _ -> float_of_string s
+	    | Text _ -> s
+	    | Date _ -> date_of_string s
+	    | Bool _ -> bool_of_string s
+	    | Custom {of_psql_string} -> of_psql_string s
+	    | Null -> None
+	    | Int_null _ -> int_null_of_string s 
+	    | Float_null _ -> float_null_of_string s
+	    | Text_null _ -> string_null_of_string s
+	    | Date_null _ -> date_null_of_string s
+	    | Bool_null _ -> bool_null_of_string s
+	    | Custom_null {of_psql_string} -> Some (of_psql_string s) (* Todo: handle NULL *)
+	    | Coalesce (_, x) -> expression_value_of_string x s
+	    | Random -> float_of_string s
+	    | Sqrti _ -> float_of_string s
+	    | Sqrtf _ -> float_of_string s
+	    | Addi _ -> int_of_string s
+	    | Addf _ -> float_of_string s
+	    | IsNull _ -> bool_of_string s
+	    | Eq _ -> bool_of_string s
+	    | Gt _ -> bool_of_string s
+	    | Lt _ -> bool_of_string s
+	    | Not _ -> bool_of_string s
+	    | And _ -> bool_of_string s
+	    | Or _ -> bool_of_string s
+	    | In _ -> bool_of_string s
+	    | Exists _ -> bool_of_string s
+	    | AnyEq1 _ -> bool_of_string s
+	    | AnyEq2 _ -> bool_of_string s
+	    | AnyEqN _ -> bool_of_string s
+	    | AnyGt _ -> bool_of_string s
+	    | AnyLt _ -> bool_of_string s
+	    | AllEq1 _ -> bool_of_string s
+	    | AllEq2 _ -> bool_of_string s
+	    | AllEqN _ -> bool_of_string s
 
-	let column_value (qres, target) row col =
-	    match index_of_column target col with
+	    | AllGt _ -> bool_of_string s
+	    | AllLt _ -> bool_of_string s
+
+
+	let expr_value (qres, target) row expr =
+	    match index_of_expr target expr with
 		| Some idx -> let v = (qres#getvalue row idx) in 
-				column_value_of_string col v
+				expression_value_of_string expr v
 		| None -> raise Not_found
 	
-	let is_null (qres, target) row col =
-	    match index_of_column target col with
+	let is_null (qres, target) row expr =
+	    match index_of_expr target expr with
 		| Some idx -> qres#getisnull row idx
 		| None -> raise Not_found
 
-	type 'a column_callback = {
-		get_value : 'a. ('a column -> 'a) ;
-		is_null : 'a. ('a column -> bool)
+	type 'a row_callback = {
+		get_value : 'a. ('a expr -> 'a) ;
+		is_null : 'a. ('a expr -> bool)
 	} 
-
-	type ('a, 'b) row_callback = 'a column_callback -> 'b
 
 	let n_rows (r:result) = (fst r)#ntuples
 
 	let column_callback_of_index (res:result) idx =
 	    {
-		get_value = (fun col -> column_value res idx col) ;
-		is_null = (fun col -> is_null res idx col )
+		get_value = (fun x -> expr_value res idx x) ;
+		is_null = (fun x -> is_null res idx x)
 	    }
-	
 
 	let get_all callback (res:result) =
 	    Array.init (fst res)#ntuples (fun idx ->
@@ -869,13 +932,13 @@ module Make (C : Connection) = struct
 	let t_of_callback cb =
 	    Array.fold_left
 		(fun t (AnyMapping (c, apply, _)) ->
-		    let v = Select.(cb.get_value) c
+		    let v = Select.(cb.get_value) (Select.Column c)
 		    in apply t v)
 		T.empty
 		T.column_mappings ;;
 	
 	let columns = Array.map (fun (AnyMapping (col, _, _))
-	    -> quoted_string_of_column col) T.column_mappings
+	    -> Select.AnyExpr (Select.Column col)) T.column_mappings
 
 	let select_query_of_expr expr =
 	    select_q columns
@@ -971,6 +1034,8 @@ module Make (C : Connection) = struct
 	    | Right of 'b
 	    | Both of ('a * 'b)
 
+	let expr_of_col col = Select.Column col
+
 	(* Todo: handle joining on the same table *)
 	(* Todo: handle multiple joins *)
 	let join dir ~on expr =
@@ -981,19 +1046,24 @@ module Make (C : Connection) = struct
 		|> Select.where expr
 		|> Select.join T2.name dir ~on
 		|> Select.exec
-	    and ordered_on = if Array.exists
-		(fun c ->
-		    c = quoted_string_of_column (fst on))
+	    and expr_of_fst (c, _) = expr_of_col c
+	    and expr_of_snd (_, c) = expr_of_col c
+
+	    in let ordered_on = if Array.exists
+		(fun e ->
+		    Select.(
+			e = AnyExpr (expr_of_fst on)))
 		Q1.columns then on (* Correct order *)
 
 		else (snd on, fst on) (* Swap *)
-	    in
+	    in 
 		Select.get_all (fun cb ->
-		    match Select.(cb.is_null (fst ordered_on), cb.is_null (snd ordered_on)) with
+		    Select.(match (cb.is_null (expr_of_fst ordered_on),
+				cb.is_null (expr_of_snd ordered_on)) with
 			| (false, false) -> Both (Q1.t_of_callback cb, Q2.t_of_callback cb)
 			| (true, false) -> Right (Q2.t_of_callback cb)
 			| (false, true) -> Left (Q1.t_of_callback cb)
-			| (true, true) -> seekwhel_fail "Seekwhel: 'on' columns in join query both returned NULL")
+			| (true, true) -> seekwhel_fail "Seekwhel: 'on' columns in join query both returned NULL"))
 		    result
 	
 

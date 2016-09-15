@@ -63,27 +63,24 @@ module Make : functor (C : Connection)
 
     module type Query = sig
 	type t
-	type target
 	type result
 	
-	val q : table:string -> target -> t
 	val to_string : t -> string
 	val exec : t -> result
     end
+
     module Select : sig
-
-	include Query
-	    with type target = string array
-
 	type 'a custom_expr = {
 	    value : 'a ;
-	    to_psql_string : 'a -> string
+	    to_psql_string : 'a -> string ;
+	    of_psql_string : string -> 'a
 	}
 
 	type order_dir =
 		    | ASC
 		    | DESC
 
+	include Query
 
 	type 'a expr =
 	    (* Column *)
@@ -142,7 +139,8 @@ module Make : functor (C : Connection)
 	    | AllLt : 'a expr * t -> bool expr
 	and any_expr = 
 	    | AnyExpr : 'a expr -> any_expr
-
+	and target = any_expr array
+	
 
 	val string_of_order_by_list_test : unit -> unit
 	val string_of_expr : 'a expr -> string
@@ -175,30 +173,35 @@ module Make : functor (C : Connection)
 	    -> t
 	    -> t
 
-	type 'a column_callback = {
-		get_value : 'a. ('a column -> 'a) ;
-		is_null : 'a. ('a column -> bool)
+	type 'a row_callback = {
+		get_value : 'a. ('a expr -> 'a) ;
+		is_null : 'a. ('a expr -> bool)
 	}
 
-	type ('a, 'b) row_callback = 'a column_callback -> 'b
-
-	val get_all : ('a, 'b) row_callback
+	val get_all : ('a row_callback -> 'b)
 	    -> result
 	    -> 'b array
 
-	val get_first : ('a, 'b) row_callback
+	val get_first : ('a row_callback -> 'b)
 	    -> result
 	    -> 'b option
     end
 
-    module Insert : Query
-	with type target = Select.column_eq_default array 
-	and type result = unit
+    module Insert : sig
+	include Query
+	    with type result = unit
+
+	type target = Select.column_eq_default array 
+
+	val q : table:string -> target -> t
+    end
 
 
     module Update : sig
-	include Query with type target = Select.column_eq_default array
-	    and type result = unit
+	include Query with type result = unit
+
+	type target = Select.column_eq_default array
+	val q : table:string -> target -> t
 
 	val where : bool Select.expr -> t -> t
     end
@@ -249,8 +252,6 @@ module Make : functor (C : Connection)
 
 	(* Will throw an error when more rows are returned *)
 	val select_unique : bool Select.expr -> T.t option
-
-	val columns : string array
     end
 
     module Join2(T1 : Table)(T2 : Table) : sig

@@ -70,6 +70,7 @@ module Make (C : Connection) = struct
 	let diff = i2 - i1
 	in if diff < 2 then ""
 	    else String.sub s (i1+1) (diff - 1) ;;
+
     let split_string_around_dots str =
 	let rec inner s idx previous_idx sub_list = 
 	    if idx = -1 then (sub_between s (-1) previous_idx) :: sub_list
@@ -698,28 +699,45 @@ module Make (C : Connection) = struct
 	    | AllLt _ -> bool_of_string s
 
 
-	let expr_value (qres, target) row expr =
-	    match index_of_expr target expr with
-		| Some idx -> expression_value_of_string
+	let expr_value_opt (qres, target) row expr =
+	     match index_of_expr target expr with
+		| Some idx -> Some (expression_value_of_string
 				expr
 				(qres#getisnull row idx)
-				(qres#getvalue row idx)
+				(qres#getvalue row idx))
+		| None -> None
+
+
+	let expr_value res row expr =
+	    match expr_value_opt res row expr with
+		| Some v -> v
 		| None -> raise Not_found
-	
-	let is_null (qres, target) row expr =
+
+	let is_null_opt (qres, target) row expr =
 	    match index_of_expr target expr with
-		| Some idx -> qres#getisnull row idx
+		| Some idx -> Some (qres#getisnull row idx)
+		| None -> None
+	
+	let is_null res row expr =
+	    match is_null_opt res row expr with
+		| Some v -> v
 		| None -> raise Not_found
 
 	type 'a row_callback = {
-		get_value : 'a. ('a expr -> 'a) ;
-		is_null : 'a. ('a expr -> bool)
+	    get_value_opt : 'a. ('a expr -> 'a option ) ;
+	    is_null_opt : 'a. ('a expr -> bool option) ;
+
+	    get_value : 'a. ('a expr -> 'a) ;
+	    is_null : 'a. ('a expr -> bool)
 	} 
 
 	let n_rows (r:result) = (fst r)#ntuples
 
 	let column_callback_of_index (res:result) idx =
 	    {
+	    	get_value_opt = (fun x -> expr_value_opt res idx x) ;
+	    	is_null_opt = (fun x -> is_null_opt res idx x) ;
+
 		get_value = (fun x -> expr_value res idx x) ;
 		is_null = (fun x -> is_null res idx x)
 	    }

@@ -165,8 +165,11 @@ module Make : functor (C : Connection)
 	    -> t
 
 	type 'a row_callback = {
-		get_value : 'a. ('a expr -> 'a) ;
-		is_null : 'a. ('a expr -> bool)
+	    get_value_opt : 'a. ('a expr -> 'a option ) ;
+	    is_null_opt : 'a. ('a expr -> bool option) ;
+
+	    get_value : 'a. ('a expr -> 'a) ;
+	    is_null : 'a. ('a expr -> bool)
 	}
 
 	val get_all : ('a row_callback -> 'b)

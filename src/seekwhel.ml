@@ -322,6 +322,8 @@ module Make (C : Connection) = struct
 
 	    (* Conditionals *)
 	    | Case : bool expr * 'a expr * 'a expr -> 'a expr
+	    | Max : 'a expr * 'a expr -> 'a expr
+	    | Min : 'a expr * 'a expr -> 'a expr
 
 	    (* Subqueries *)
 	    | Exists : t -> bool expr
@@ -496,6 +498,22 @@ module Make (C : Connection) = struct
 			
 			"CASE WHEN " ^ nsim_soe cond ^ " THEN " ^ nsim_soe then_
 			^ " ELSE " ^ nsim_soe else_ ^ " END"
+		    | Max (left1, right1) ->
+			let rec comma_sep_expressions = function
+			    | Max (left2, right2) ->
+				comma_sep_expressions left2
+				    ^ ", " ^ comma_sep_expressions right2
+			    | x -> nsim_soe x
+			in "GREATEST(" ^ comma_sep_expressions left1 ^
+			    ", " ^ comma_sep_expressions right1 ^ ")"
+		    | Min (left1, right1) ->
+			let rec comma_sep_expressions = function
+			    | Min (left2, right2) ->
+				comma_sep_expressions left2
+				    ^ ", " ^ comma_sep_expressions right2
+			    | x -> nsim_soe x
+			in "LEAST(" ^ comma_sep_expressions left1 ^
+			    ", " ^ comma_sep_expressions right1 ^ ")"
 
 		    | Exists sel -> to_string sel
 
@@ -712,6 +730,10 @@ module Make (C : Connection) = struct
 	    | In _ -> bool_of_string s
 
 	    | Case (_, x1, _) -> expression_value_of_string x1 is_null s
+	    | Max (x1, _) -> expression_value_of_string x1 is_null s
+	    | Min (x1, _) -> expression_value_of_string x1 is_null s
+
+
 	    | Exists _ -> bool_of_string s
 	    | AnyEq1 _ -> bool_of_string s
 	    | AnyEq2 _ -> bool_of_string s

@@ -183,6 +183,10 @@ module String_of_expr_test = struct
 
     (* Conditionals *)
     let case = Case (lt, f, sqrtf)
+    let max_single = Max(f, sqrtf)
+    let max_double = Max(Max(i, addi), Max(i, i))
+    let min_single = Min(f, sqrtf)
+    let min_double = Min(Min(i, addi), Min(i, i))
 
     (* Some complicated expressions *)
     let root_coalesce = Sqrti (Coalesce (int_null, i))
@@ -217,6 +221,11 @@ module String_of_expr_test = struct
 	and_ >>|| "(price = 10.) AND (stock > 5)" ;
 	or_ >>|| "(100 IS NULL) OR (NOT (price = 10.))" ;
 	case >>|| "CASE WHEN ('def' < \"name\") THEN 20.3 ELSE (|/ 20.3) END" ;
+	max_single >>|| "GREATEST(20.3, (|/ 20.3))" ;
+	max_double >>|| "GREATEST(10, (10 + 10), 10, 10)";
+	min_single >>|| "LEAST(20.3, (|/ 20.3))" ;
+	min_double >>|| "LEAST(10, (10 + 10), 10, 10)";
+
 	root_coalesce >>|| "|/ (COALESCE(100, 10))" ;
 	logical >>||
 	    "(price = 10.) AND (stock > 5) AND (price = 10.) AND ((100 IS NULL) OR (100 IS NULL) OR (NOT (price = 10.)))" ;;

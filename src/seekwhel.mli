@@ -117,6 +117,8 @@ module Make : functor (C : Connection)
 
 	    (* Conditionals *)
 	    | Case : bool expr * 'a expr * 'a expr -> 'a expr
+	    | Max : 'a expr * 'a expr -> 'a expr
+	    | Min : 'a expr * 'a expr -> 'a expr
 
 	    (* Subqueries *)
 	    | Exists : t -> bool expr

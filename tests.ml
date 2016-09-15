@@ -81,15 +81,15 @@ module String_of_expr_test = struct
 	addi >>|| "10 + 10" ;
 	addf >>|| "20.3 + 20.3" ;
 	is_null >>|| "100 IS NULL" ;
-	eq >>|| "\"price\" = 10." ;
-	gt >>|| "\"stock\" > 5" ;
+	eq >>|| "price = 10." ;
+	gt >>|| "stock > 5" ;
 	lt >>|| "'def' < \"name\"" ;
-	not_ >>|| "NOT (\"price\" = 10.)" ;
-	and_ >>|| "(\"price\" = 10.) AND (\"stock\" > 5)" ;
-	or_ >>|| "(100 IS NULL) OR (NOT (\"price\" = 10.))" ;
+	not_ >>|| "NOT (price = 10.)" ;
+	and_ >>|| "(price = 10.) AND (stock > 5)" ;
+	or_ >>|| "(100 IS NULL) OR (NOT (price = 10.))" ;
 	root_coalesce >>|| "|/ (COALESCE(100, 10))" ;
 	logical >>||
-	    "(\"price\" = 10.) AND (\"stock\" > 5) AND (\"price\" = 10.) AND ((100 IS NULL) OR (100 IS NULL) OR (NOT (\"price\" = 10.)))" ;;
+	    "(price = 10.) AND (stock > 5) AND (price = 10.) AND ((100 IS NULL) OR (100 IS NULL) OR (NOT (price = 10.)))" ;;
 	     
 end
 

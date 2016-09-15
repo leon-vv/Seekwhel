@@ -9,7 +9,7 @@ build/%.cmi: src/%.mli
 	mkdir -p build
 	ocamlfind ocamlc $(CAML_FLAGS) -c -o $@ $<
 
-build/seekwhel.cmo: build/keywords.cmo src/seekwhel.ml build/seekwhel.cmi
+build/seekwhel.cmo: build/keywords.cmi build/keywords.cmo src/seekwhel.ml build/seekwhel.cmi
 	ocamlfind ocamlc $(CAML_FLAGS) -c -o $@ build/keywords.cmo src/seekwhel.ml
 
 build/%.cmo: src/%.ml build/%.cmi

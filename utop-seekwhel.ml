@@ -1,6 +1,7 @@
 #use "topfind";;
 #require "postgresql";;
 #require "calendar";;
+#mod_use "src/keywords.ml";;
 #mod_use "src/seekwhel.ml";;
 #mod_use "tests.ml";;
 

@@ -23,32 +23,6 @@ module type Connection = sig
 end
 
 module Make (C : Connection) = struct
- 
-    (* Begin helpful functions for testing *)
-
-    let rec test1 f = function
-	| (input, output)::rest ->
-	    assert (f input = output) ;
-	    test1 f rest 
-	| [] -> ()
-
-    let rec test2 f = function
-	| (i1, i2, output)::rest ->
-	    assert (f i1 i2 = output) ;
-	    test2 f rest
-	| [] -> ()
-
-    let rec expect_exception f = function
-	| input::is ->
-	    let ex = (try f input; false
-		with _ -> true)
-	    in if ex then expect_exception f is
-	    else failwith "No exception thrown"
-	| [] -> ()
-	
-
-    (* End helpful functions for testing *)
-
     exception Seekwhel_error of string	
 
     let seekwhel_fail s = raise (Seekwhel_error s)
@@ -96,19 +70,6 @@ module Make (C : Connection) = struct
 	let diff = i2 - i1
 	in if diff < 2 then ""
 	    else String.sub s (i1+1) (diff - 1) ;;
-
-    let sub_between_test () =
-	assert (sub_between "" 0 0 = "") ;
-	assert (sub_between "a" 0 0 = "") ;
-	assert (sub_between "ab" 0 0 = "") ;
-	assert (sub_between "ab" 0 1 = "") ;
-	assert (sub_between "abc" 0 1 = "") ;
-	assert (sub_between "abc" 0 2 = "b") ;
-	assert (sub_between "abcd" 1 3 = "c") ;
-	assert (sub_between "abcdefg" 1 5 = "cde") ;
-	assert (sub_between "abc" 0 3 = "bc") ;
-	assert (sub_between "abc" (-1) 3 = "abc")
-
     let split_string_around_dots str =
 	let rec inner s idx previous_idx sub_list = 
 	    if idx = -1 then (sub_between s (-1) previous_idx) :: sub_list
@@ -122,21 +83,7 @@ module Make (C : Connection) = struct
 
 	in let length_minus = String.length str - 1
 	in inner str length_minus (String.length str) []
-   	
-    let split_string_around_dots_test () =
-	test1 split_string_around_dots
-	    [	("", [""]) ;
-		("adf", ["adf"]) ;
-		("#$%^", ["#$%^"]) ;
-		("asé¶»«³", ["asé¶»«³"]) ;
-		(".", [""; ""]) ;
-		("...", [""; ""; ""; ""]) ;
-		("a.b..d", ["a"; "b"; ""; "d"]) ;
-		("asdf adsf.ads ..", ["asdf adsf"; "ads "; ""; ""]) ;
-		(".a.b", [""; "a"; "b"]) ;
-		("a.b.c", ["a"; "b"; "c"]) ] ;;
-
-
+   
     (* Rename the table name in the column 'column'.
     We assume the column consists of three or two parts
     separated by dots (schema name, table name, column name) *)
@@ -150,19 +97,6 @@ module Make (C : Connection) = struct
 	    	name of the format schema.tablename.column or tablename.column." ^
 	    	" Column " ^ column ^ " was not of the expected format.")
 	in String.concat "." new_parts
-
-    let rename_table_in_string_test () =
-	let flip f = (fun x y -> f y x)
-	in (expect_exception
-	    ((flip rename_table_in_string) "table")
-	    [""; "a"; "..."; "a.b.c.d"] ;
-	test2 rename_table_in_string [
-	    ("a.b", "def", "def.b") ;
-	    ("a.b.c", "d", "a.d.c") ;
-	    ("..", "a", ".a.") ;
-	    (".", "a", "a.")
-	])
-	
 
     let rec rename_table (type a) (c:a column) new_name :a column =
 	let rtis = rename_table_in_string
@@ -183,10 +117,6 @@ module Make (C : Connection) = struct
 
     let ( <|| ) = rename_table
 
-    let rename_table_test () = assert (
-	(Columni "products.stock" <|| "p1")
-	    = Columni "p1.stock")
-    
     type parser_state = 
 	| Begin (* Start *)
 	| Read (* Read one or more characters (no quotes) *)
@@ -250,22 +180,6 @@ module Make (C : Connection) = struct
 		    | Quote_begin
 		    | Invalid -> seekwhel_fail "Could not quote identifier " ^ ident
 			^ " because it contains invalid characters")
-	
-    let quote_identifier_test () =
-	expect_exception safely_quote_identifier
-	    ["asdf\""; "\"sfd"; "\""; "aasf\"asdfasdf";
-	    "\"\"a"; "a\"\""; "\"\"asdfad\"\""] ;
-	test1 safely_quote_identifier [
-	    ("", "");
-	    ("a", "\"a\""); (* "a" is a keyword *)
-	    ("b", "b");
-	    ("abc", "abc");
-	    ("\"\"", "\"\"");
-	    ("\"a\"", "\"a\"");
-	    ("select", "\"select\"");
-	    ("array_MAX_cardinality", "\"array_MAX_cardinality\"")
-	]
-	
 
     (* This check shouldn't be neccessary. Identifiers (table
     and column names) should be static and thus not
@@ -278,19 +192,6 @@ module Make (C : Connection) = struct
 	let parts = split_string_around_dots s
 	in let new_parts = List.map safely_quote_identifier parts
 	in String.concat "." new_parts
-
-
-    let safely_quote_column_test () =
-	expect_exception safely_quote_column
-	    ["\""; "adc.d\"d"; "a\""] ;
-	test1 safely_quote_column
-	    [("kl.h.f", "kl.h.f");
-	    ("..", "..");
-	    ("\"a\".b", "\"a\".b");
-	    ("a.d.\"k\"", "\"a\".d.\"k\"");
-	    ("\"\"", "\"\"");
-	    ("select.uncommitted..abc",
-		"\"select\".\"uncommitted\"..abc")]
 
 
     let string_of_column (type a) (c:a column) =
@@ -469,19 +370,7 @@ module Make (C : Connection) = struct
 		|> String.concat ", "
 	    in if column_part = "" then ""
 		else "ORDER BY " ^ column_part
-	    
-	let string_of_order_by_list_test () =
-	    test1 string_of_order_by_list
-		[
-		    ([], "") ;
-		    ([{dir = ASC ; column = "stock"}], "ORDER BY stock ASC") ;
-		    ([{dir = ASC ; column = "stock"} ;
-		    {dir = DESC ; column = "abc.price"}],
-			"ORDER BY stock ASC, abc.price DESC")
-		]
-
-
-		
+	   		
 
 	let is_simple_value_constructor (type a) (x: a expr) =
 	    match x with

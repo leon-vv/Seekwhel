@@ -1,7 +1,12 @@
-open CalendarLib
-open Seekwhel
+#use "topfind";;
+#require "postgresql";;
+#require "calendar";;
+#mod_use "src/keywords.ml";;
+#mod_use "src/seekwhel.ml";;
 
-module Seekwhel_test : Connection = struct
+open CalendarLib
+
+module Seekwhel_test : Seekwhel.Connection = struct
     let connection = try new Postgresql.connection
 	~host:"127.0.0.1"
 	~dbname:"seekwhel_test"
@@ -14,6 +19,127 @@ module S = Seekwhel.Make(Seekwhel_test)
 open S
 open S.Select
 
+(* Begin helpful functions for testing *)
+
+let rec test1 f = function
+    | (input, output)::rest ->
+	assert (f input = output) ;
+	test1 f rest 
+    | [] -> ()
+
+let rec test2 f = function
+    | (i1, i2, output)::rest ->
+	assert (f i1 i2 = output) ;
+	test2 f rest
+    | [] -> ()
+
+let rec expect_exception f = function
+    | input::is ->
+	let ex = (try f input; false
+	    with _ -> true)
+	in if ex then expect_exception f is
+	else failwith "No exception thrown"
+    | [] -> ()
+    
+
+(* End helpful functions for testing *)
+
+let sub_between_test () =
+    assert (sub_between "" 0 0 = "") ;
+    assert (sub_between "a" 0 0 = "") ;
+    assert (sub_between "ab" 0 0 = "") ;
+    assert (sub_between "ab" 0 1 = "") ;
+    assert (sub_between "abc" 0 1 = "") ;
+    assert (sub_between "abc" 0 2 = "b") ;
+    assert (sub_between "abcd" 1 3 = "c") ;
+    assert (sub_between "abcdefg" 1 5 = "cde") ;
+    assert (sub_between "abc" 0 3 = "bc") ;
+    assert (sub_between "abc" (-1) 3 = "abc")
+    
+
+let rename_table_in_string_test () =
+    let flip f = (fun x y -> f y x)
+    in (expect_exception
+	((flip rename_table_in_string) "table")
+	[""; "a"; "..."; "a.b.c.d"] ;
+    test2 rename_table_in_string [
+	("a.b", "def", "def.b") ;
+	("a.b.c", "d", "a.d.c") ;
+	("..", "a", ".a.") ;
+	(".", "a", "a.")
+    ])
+    
+let rename_table_test () = assert (
+    (Columni "products.stock" <|| "p1")
+	= Columni "p1.stock")
+
+
+let split_string_around_dots_test () =
+    test1 split_string_around_dots
+	[	("", [""]) ;
+	    ("adf", ["adf"]) ;
+	    ("#$%^", ["#$%^"]) ;
+	    ("asé¶»«³", ["asé¶»«³"]) ;
+	    (".", [""; ""]) ;
+	    ("...", [""; ""; ""; ""]) ;
+	    ("a.b..d", ["a"; "b"; ""; "d"]) ;
+	    ("asdf adsf.ads ..", ["asdf adsf"; "ads "; ""; ""]) ;
+	    (".a.b", [""; "a"; "b"]) ;
+	    ("a.b.c", ["a"; "b"; "c"]) ] ;;
+
+
+ 
+let quote_identifier_test () =
+    expect_exception safely_quote_identifier
+	["asdf\""; "\"sfd"; "\""; "aasf\"asdfasdf";
+	"\"\"a"; "a\"\""; "\"\"asdfad\"\""] ;
+    test1 safely_quote_identifier [
+	("", "");
+	("a", "\"a\""); (* "a" is a keyword *)
+	("b", "b");
+	("abc", "abc");
+	("\"\"", "\"\"");
+	("\"a\"", "\"a\"");
+	("select", "\"select\"");
+	("array_MAX_cardinality", "\"array_MAX_cardinality\"")
+    ]
+	
+let quote_identifier_test () =
+    expect_exception safely_quote_identifier
+	["asdf\""; "\"sfd"; "\""; "aasf\"asdfasdf";
+	"\"\"a"; "a\"\""; "\"\"asdfad\"\""] ;
+    test1 safely_quote_identifier [
+	("", "");
+	("a", "\"a\""); (* "a" is a keyword *)
+	("b", "b");
+	("abc", "abc");
+	("\"\"", "\"\"");
+	("\"a\"", "\"a\"");
+	("select", "\"select\"");
+	("array_MAX_cardinality", "\"array_MAX_cardinality\"")
+    ]
+    
+let string_of_order_by_list_test () =
+    test1 string_of_order_by_list
+	[
+	    ([], "") ;
+	    ([{dir = ASC ; column = "stock"}], "ORDER BY stock ASC") ;
+	    ([{dir = ASC ; column = "stock"} ;
+	    {dir = DESC ; column = "abc.price"}],
+		"ORDER BY stock ASC, abc.price DESC")
+	]
+
+let safely_quote_column_test () =
+    expect_exception safely_quote_column
+	["\""; "adc.d\"d"; "a\""] ;
+    test1 safely_quote_column
+	[("kl.h.f", "kl.h.f");
+	("..", "..");
+	("\"a\".b", "\"a\".b");
+	("a.d.\"k\"", "\"a\".d.\"k\"");
+	("\"\"", "\"\"");
+	("select.uncommitted..abc",
+	    "\"select\".\"uncommitted\"..abc")]
 
 module String_of_expr_test = struct
 
@@ -103,7 +229,7 @@ let pure_tests =
 	("quote_ident", quote_identifier_test);
 	("safely_quote_column", safely_quote_column_test);
 	("string_of_expr", String_of_expr_test.string_of_expr_test);
-	("string_of_order_by_list", Select.string_of_order_by_list_test)
+	("string_of_order_by_list", string_of_order_by_list_test)
     ] ;;
 
 let run_pure_tests () = List.fold_left

@@ -50,16 +50,8 @@ module Make : functor (C : Connection)
 	| Columnb_null : string -> bool option column
 	| Column_custom_null : 'a custom_column -> 'a option column
 
-    val sub_between_test : unit -> unit
-    val split_string_around_dots_test : unit -> unit
 	
     val ( <|| ): 'a column -> string -> 'a column 
-
-    val rename_table_in_string_test : unit -> unit
-    val rename_table_test : unit -> unit
-    
-    val quote_identifier_test : unit -> unit
-    val safely_quote_column_test : unit -> unit
 
     module type Query = sig
 	type t
@@ -142,7 +134,6 @@ module Make : functor (C : Connection)
 	and target = any_expr array
 	
 
-	val string_of_order_by_list_test : unit -> unit
 	val string_of_expr : 'a expr -> string
 
 	val expr_of_value : 'a -> 'a column -> 'a expr

@@ -8,6 +8,8 @@
 let soe = Tests.S.Select.string_of_expr;;
 module TS = Tests.String_of_expr_test;;
 
+open TS
+
 module Seekwhel_test : Seekwhel.Connection = struct
     let connection = new Postgresql.connection
 	~host:"127.0.0.1"
@@ -18,6 +20,7 @@ end
 
 module S = Seekwhel.Make(Seekwhel_test)
 open S
+open S.Select
 
 let pp_of_to_string f =
     (fun formatter input -> Format.pp_print_text formatter (f input)) ;;

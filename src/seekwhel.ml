@@ -320,6 +320,9 @@ module Make (C : Connection) = struct
 	    | Or : bool expr * bool expr -> bool expr
 	    | In : 'a expr * 'a expr list -> bool expr
 
+	    (* Conditionals *)
+	    | Case : bool expr * 'a expr * 'a expr -> 'a expr
+
 	    (* Subqueries *)
 	    | Exists : t -> bool expr
 
@@ -397,7 +400,11 @@ module Make (C : Connection) = struct
 	    | Or _ -> true
 	    | _ -> false
 
-	let rec string_of_expr : type a. a expr -> string =
+	let rec nsim_soe x =
+	    if is_simple_value_constructor x then string_of_expr x
+	    else "(" ^ string_of_expr x ^ ")"
+
+	and string_of_expr : type a. a expr -> string =
 	    fun expr ->
 		let soe = string_of_expr
 
@@ -479,6 +486,16 @@ module Make (C : Connection) = struct
 			nsim_soe x1 ^ " IN " ^ 
 			wp (String.concat ", " (List.map nsim_soe xs))
 
+		    | Case (cond, then_, else_) ->
+			(*let rec when_of_case (Case (cond, then_, else_)) =
+			    "WHEN " ^ nsim_soe cond ^ " THEN " ^ nsim_soe then_ ^ "\n\t" ^
+			    (match else_ with
+				| Case _ -> when_of_case else_
+				| _ -> "ELSE " ^ nsim_soe else_)
+			    ^ "\nEND\t"*)
+			
+			"CASE WHEN " ^ nsim_soe cond ^ " THEN " ^ nsim_soe then_
+			^ " ELSE " ^ nsim_soe else_ ^ " END"
 
 		    | Exists sel -> to_string sel
 
@@ -666,6 +683,7 @@ module Make (C : Connection) = struct
 	    | Date _ -> date_of_string s
 	    | Bool _ -> bool_of_string s
 	    | Custom {of_psql_string} -> of_psql_string s
+
 	    | Null -> None
 	    | Int_null _ -> maybe_null int_null_of_string
 	    | Float_null _ -> maybe_null float_null_of_string
@@ -681,6 +699,7 @@ module Make (C : Connection) = struct
 	    | Sqrtf _ -> float_of_string s
 	    | Addi _ -> int_of_string s
 	    | Addf _ -> float_of_string s
+
 	    | IsNull _ -> bool_of_string s
 	    | Eq _ -> bool_of_string s
 	    | GT _ -> bool_of_string s
@@ -691,6 +710,8 @@ module Make (C : Connection) = struct
 	    | And _ -> bool_of_string s
 	    | Or _ -> bool_of_string s
 	    | In _ -> bool_of_string s
+
+	    | Case (_, x1, _) -> expression_value_of_string x1 is_null s
 	    | Exists _ -> bool_of_string s
 	    | AnyEq1 _ -> bool_of_string s
 	    | AnyEq2 _ -> bool_of_string s
@@ -700,7 +721,6 @@ module Make (C : Connection) = struct
 	    | AllEq1 _ -> bool_of_string s
 	    | AllEq2 _ -> bool_of_string s
 	    | AllEqN _ -> bool_of_string s
-
 	    | AllGt _ -> bool_of_string s
 	    | AllLt _ -> bool_of_string s
 

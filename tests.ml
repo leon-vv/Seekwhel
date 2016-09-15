@@ -172,6 +172,7 @@ module String_of_expr_test = struct
     let addi = Addi (i, i)
     let addf = Addf (f, f)
 
+    (* Boolean *)
     let is_null = IsNull int_null
     let eq = Eq (Column price_col, Float 10.0)
     let gt = GT (Column stock_col, Int 5)
@@ -179,6 +180,9 @@ module String_of_expr_test = struct
     let not_ = Not eq
     let and_ = And (eq, gt)
     let or_ = Or (is_null, not_)
+
+    (* Conditionals *)
+    let case = Case (lt, f, sqrtf)
 
     (* Some complicated expressions *)
     let root_coalesce = Sqrti (Coalesce (int_null, i))
@@ -212,6 +216,7 @@ module String_of_expr_test = struct
 	not_ >>|| "NOT (price = 10.)" ;
 	and_ >>|| "(price = 10.) AND (stock > 5)" ;
 	or_ >>|| "(100 IS NULL) OR (NOT (price = 10.))" ;
+	case >>|| "CASE WHEN ('def' < \"name\") THEN 20.3 ELSE (|/ 20.3) END" ;
 	root_coalesce >>|| "|/ (COALESCE(100, 10))" ;
 	logical >>||
 	    "(price = 10.) AND (stock > 5) AND (price = 10.) AND ((100 IS NULL) OR (100 IS NULL) OR (NOT (price = 10.)))" ;;

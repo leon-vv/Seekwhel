@@ -311,8 +311,10 @@ module Make (C : Connection) = struct
 	    (* Boolean *)
 	    | IsNull : ('a option) expr -> bool expr
 	    | Eq : 'a expr * 'a expr -> bool expr
-	    | Gt : 'a expr * 'a expr -> bool expr
-	    | Lt : 'a expr * 'a expr -> bool expr
+	    | GT : 'a expr * 'a expr -> bool expr
+	    | GTE : 'a expr * 'a expr -> bool expr
+	    | LT : 'a expr * 'a expr -> bool expr
+	    | LTE : 'a expr * 'a expr -> bool expr
 	    | Not : bool expr -> bool expr
 	    | And : bool expr * bool expr -> bool expr
 	    | Or : bool expr * bool expr -> bool expr
@@ -456,8 +458,10 @@ module Make (C : Connection) = struct
 
 		    | IsNull x -> nsim_soe x ^ " IS NULL"
 		    | Eq (x1, x2) -> nsim_eas x1 x2 " = "
-		    | Gt (x1, x2) -> nsim_eas x1 x2 " > "
-		    | Lt (x1, x2) -> nsim_eas x1 x2 " < "
+		    | GT (x1, x2) -> nsim_eas x1 x2 " > "
+		    | GTE (x1, x2) -> nsim_eas x1 x2 " >= "
+		    | LT (x1, x2) -> nsim_eas x1 x2 " < "
+		    | LTE (x1, x2) -> nsim_eas x1 x2 " <= "
 		    | Not x -> "NOT " ^ expr_wp x
 
 		    (* Some special checks to reduce parentheses
@@ -679,8 +683,10 @@ module Make (C : Connection) = struct
 	    | Addf _ -> float_of_string s
 	    | IsNull _ -> bool_of_string s
 	    | Eq _ -> bool_of_string s
-	    | Gt _ -> bool_of_string s
-	    | Lt _ -> bool_of_string s
+	    | GT _ -> bool_of_string s
+	    | GTE _ -> bool_of_string s
+	    | LT _ -> bool_of_string s
+	    | LTE _ -> bool_of_string s
 	    | Not _ -> bool_of_string s
 	    | And _ -> bool_of_string s
 	    | Or _ -> bool_of_string s

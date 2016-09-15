@@ -174,8 +174,8 @@ module String_of_expr_test = struct
 
     let is_null = IsNull int_null
     let eq = Eq (Column price_col, Float 10.0)
-    let gt = Gt (Column stock_col, Int 5)
-    let lt = Lt (Text "def", Column name_col)
+    let gt = GT (Column stock_col, Int 5)
+    let lt = LT (Text "def", Column name_col)
     let not_ = Not eq
     let and_ = And (eq, gt)
     let or_ = Or (is_null, not_)

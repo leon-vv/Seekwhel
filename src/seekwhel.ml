@@ -83,15 +83,11 @@ module Make (C : Connection) = struct
     (* int_of_string, float_of_string, bool_of_string *)
     let date_of_string = Printer.Calendar.from_string
     
-    let maybe_null of_string = function
-	| "NULL" -> None
-	| s -> Some (of_string s)
-
-    let int_null_of_string s = maybe_null int_of_string s
-    let float_null_of_string s = maybe_null float_of_string s
-    let string_null_of_string s = maybe_null (fun s -> s) s
-    let date_null_of_string s = maybe_null date_of_string s
-    let bool_null_of_string s = maybe_null bool_of_string s
+    let int_null_of_string s = Some (int_of_string s)
+    let float_null_of_string s = Some (float_of_string s)
+    let string_null_of_string s = Some ((fun s -> s) s)
+    let date_null_of_string s = Some (date_of_string s)
+    let bool_null_of_string s = Some (bool_of_string s)
 
 
     (* Retrieve the substring of s between
@@ -740,8 +736,11 @@ module Make (C : Connection) = struct
 	let index_of_expr target expr =
 	    get_index_where (fun x -> AnyExpr expr = x) target
  
-	let rec expression_value_of_string : type a. a expr -> string -> a = fun e s ->
-	    match e with
+	let rec expression_value_of_string : type a. a expr -> bool -> string -> a = fun e is_null s ->
+	    let maybe_null f =
+		if is_null then None
+		else f s
+	    in match e with
 	    | Column c -> column_value_of_string c s
 	    | Int _ -> int_of_string s 
 	    | Float _ -> float_of_string s
@@ -750,13 +749,15 @@ module Make (C : Connection) = struct
 	    | Bool _ -> bool_of_string s
 	    | Custom {of_psql_string} -> of_psql_string s
 	    | Null -> None
-	    | Int_null _ -> int_null_of_string s 
-	    | Float_null _ -> float_null_of_string s
-	    | Text_null _ -> string_null_of_string s
-	    | Date_null _ -> date_null_of_string s
-	    | Bool_null _ -> bool_null_of_string s
-	    | Custom_null {of_psql_string} -> Some (of_psql_string s) (* Todo: handle NULL *)
-	    | Coalesce (_, x) -> expression_value_of_string x s
+	    | Int_null _ -> maybe_null int_null_of_string
+	    | Float_null _ -> maybe_null float_null_of_string
+	    | Text_null _ -> maybe_null string_null_of_string
+	    | Date_null _ -> maybe_null date_null_of_string
+	    | Bool_null _ -> maybe_null bool_null_of_string
+	    | Custom_null {of_psql_string} ->
+		maybe_null (fun s -> Some (of_psql_string s))
+
+	    | Coalesce (_, x) -> expression_value_of_string x is_null s
 	    | Random -> float_of_string s
 	    | Sqrti _ -> float_of_string s
 	    | Sqrtf _ -> float_of_string s
@@ -786,8 +787,10 @@ module Make (C : Connection) = struct
 
 	let expr_value (qres, target) row expr =
 	    match index_of_expr target expr with
-		| Some idx -> let v = (qres#getvalue row idx) in 
-				expression_value_of_string expr v
+		| Some idx -> expression_value_of_string
+				expr
+				(qres#getisnull row idx)
+				(qres#getvalue row idx)
 		| None -> raise Not_found
 	
 	let is_null (qres, target) row expr =
@@ -932,7 +935,7 @@ module Make (C : Connection) = struct
 	let t_of_callback cb =
 	    Array.fold_left
 		(fun t (AnyMapping (c, apply, _)) ->
-		    let v = Select.(cb.get_value) (Select.Column c)
+		    let v = Select.(cb.get_value (Column c))
 		    in apply t v)
 		T.empty
 		T.column_mappings ;;

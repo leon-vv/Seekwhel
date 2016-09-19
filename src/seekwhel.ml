@@ -25,7 +25,7 @@ end
 module Make (C : Connection) = struct
     exception Seekwhel_error of string	
 
-    let seekwhel_fail s = raise (Seekwhel_error s)
+    let seekwhel_fail s = raise (Seekwhel_error ("Seekwhel: " ^ s))
 
     let exec_ignore st = ignore (C.connection#exec
 			~expect:[Postgresql.Command_ok]
@@ -94,7 +94,7 @@ module Make (C : Connection) = struct
 	    match parts with
 		| [p1;p2;p3] -> [p1;table_name;p3]
 		| [p1;p2] -> [table_name; p2]
-		| _ -> seekwhel_fail ("Seekwhel: function 'rename_table', expected a column
+		| _ -> seekwhel_fail ("function 'rename_table', expected a column
 	    	name of the format schema.tablename.column or tablename.column." ^
 	    	" Column " ^ column ^ " was not of the expected format.")
 	in String.concat "." new_parts
@@ -179,7 +179,7 @@ module Make (C : Connection) = struct
 		    | Read -> quotify ident
 		    | Quote_end -> ident
 		    | Quote_begin
-		    | Invalid -> seekwhel_fail "Could not quote identifier " ^ ident
+		    | Invalid -> seekwhel_fail "could not quote identifier " ^ ident
 			^ " because it contains invalid characters")
 
     (* This check shouldn't be neccessary. Identifiers (table
@@ -443,7 +443,7 @@ module Make (C : Connection) = struct
 			    w ^ when_of_case else1
 			| _ ->
 			    w ^ "ELSE " ^ nsim_soe else1)
-		| _ -> seekwhel_fail "Seekwhel: string_of_case called with a non-Case expression"
+		| _ -> seekwhel_fail "string_of_case called with a non-Case expression"
 	    in 
 		"CASE " ^ when_of_case c ^ " END"
 
@@ -881,7 +881,7 @@ module Make (C : Connection) = struct
 	    match (fst res)#ntuples with
 		| 0 -> None
 		| 1 -> Some (callback (column_callback_of_index res 0))
-		| _ -> seekwhel_fail "Seekwhel: in function get_unique; select query
+		| _ -> seekwhel_fail "in function get_unique; select query
 		resulted in more than one row" 
 
 	let exec sel =
@@ -1045,13 +1045,13 @@ module Make (C : Connection) = struct
 
 	let primary_mappings = 
 	    let lst = match Array.length T.primary_key with
-		| 0 -> seekwhel_fail ("Seekwhel: primary key array cannot be empty
+		| 0 -> seekwhel_fail ("primary key array cannot be empty
 		    (table name: " ^ T.name ^ ")")
 		| _ -> let lst = Array.to_list T.column_mappings
 		    in List.filter (fun (AnyMapping (col, _, _)) ->
 			Array.mem (string_of_column col) T.primary_key) lst
 	    in if List.length lst > 0 then lst
-		else seekwhel_fail ("Seekwhel: a column mapping of the primary keys
+		else seekwhel_fail ("a column mapping of the primary keys
 		    could not be found (table name: " ^ T.name ^ ")")
 
 	let where_of_primary t =
@@ -1060,7 +1060,7 @@ module Make (C : Connection) = struct
 	    in let expr = Select.expr_of_expr_list equals
 	    in match expr with
 		| Some x -> x
-		| None -> seekwhel_fail "Trying to build where clause of primary keys; but 
+		| None -> seekwhel_fail "trying to build where clause of primary keys; but 
 		    no primary keys where given" (* This exception can't happen
 		    because of the assertion made when assigning 'primary_mappings' *)
 	
@@ -1122,7 +1122,7 @@ module Make (C : Connection) = struct
 			| (false, false) -> Both (Q1.t_of_callback cb, Q2.t_of_callback cb)
 			| (true, false) -> Right (Q2.t_of_callback cb)
 			| (false, true) -> Left (Q1.t_of_callback cb)
-			| (true, true) -> seekwhel_fail "Seekwhel: 'on' columns in join query both returned NULL"))
+			| (true, true) -> seekwhel_fail "'on' columns in join query both returned NULL"))
 		    result
 	
 
@@ -1131,7 +1131,7 @@ module Make (C : Connection) = struct
 	    in
 		Array.map (function
 		    | Both res -> res
-		    | _ -> seekwhel_fail "Seekwhel: 'on' columns in INNER join cannot be NULL; unexpected result")
+		    | _ -> seekwhel_fail "'on' columns in INNER join cannot be NULL; unexpected result")
 		    rows
 	
     end

@@ -182,7 +182,10 @@ module String_of_expr_test = struct
     let or_ = Or (is_null, not_)
 
     (* Conditionals *)
-    let case = Case (lt, f, sqrtf)
+    let case_single = Case (lt, f, sqrtf)
+    let case_double = Case (eq, f, case_single)
+
+
     let max_single = Max(f, sqrtf)
     let max_double = Max(Max(i, addi), Max(i, i))
     let min_single = Min(f, sqrtf)
@@ -220,7 +223,8 @@ module String_of_expr_test = struct
 	not_ >>|| "NOT (price = 10.)" ;
 	and_ >>|| "(price = 10.) AND (stock > 5)" ;
 	or_ >>|| "(100 IS NULL) OR (NOT (price = 10.))" ;
-	case >>|| "CASE WHEN ('def' < \"name\") THEN 20.3 ELSE (|/ 20.3) END" ;
+	case_single >>|| "CASE WHEN ('def' < \"name\") THEN 20.3 ELSE (|/ 20.3) END" ;
+	case_double >>|| "CASE WHEN (price = 10.) THEN 20.3 WHEN ('def' < \"name\") THEN 20.3 ELSE (|/ 20.3) END" ;
 	max_single >>|| "GREATEST(20.3, (|/ 20.3))" ;
 	max_double >>|| "GREATEST(10, (10 + 10), 10, 10)";
 	min_single >>|| "LEAST(20.3, (|/ 20.3))" ;

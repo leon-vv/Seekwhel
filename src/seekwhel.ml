@@ -434,6 +434,20 @@ module Make (C : Connection) = struct
 	    if is_simple_value_constructor x then string_of_expr x
 	    else x |> string_of_expr |> within_paren
 
+	and string_of_case : type a. a expr -> string = fun c ->
+	    let rec when_of_case = function
+		| Case (cond1, then1, else1) ->
+		    (let w = "WHEN " ^ nsim_soe cond1 ^ " THEN " ^ nsim_soe then1 ^ " "
+		    in match else1 with
+			| Case _ ->
+			    w ^ when_of_case else1
+			| _ ->
+			    w ^ "ELSE " ^ nsim_soe else1)
+		| _ -> seekwhel_fail "Seekwhel: string_of_case called with a non-Case expression"
+	    in 
+		"CASE " ^ when_of_case c ^ " END"
+
+			
 	and string_of_expr : type a. a expr -> string =
 	    fun expr ->
 		let wp = within_paren
@@ -531,16 +545,9 @@ module Make (C : Connection) = struct
 			nsim_soe x1 ^ " IN " ^ 
 			wp (String.concat ", " (List.map nsim_soe xs))
 
-		    | Case (cond, then_, else_) ->
-			(*let rec when_of_case (Case (cond, then_, else_)) =
-			    "WHEN " ^ nsim_soe cond ^ " THEN " ^ nsim_soe then_ ^ "\n\t" ^
-			    (match else_ with
-				| Case _ -> when_of_case else_
-				| _ -> "ELSE " ^ nsim_soe else_)
-			    ^ "\nEND\t"*)
+		    | Case (cond, then_, else_) as c ->
+			string_of_case c
 
-			"CASE WHEN " ^ nsim_soe cond ^ " THEN " ^ nsim_soe then_
-			^ " ELSE " ^ nsim_soe else_ ^ " END"
 		    | Max (left1, right1) ->
 			let rec comma_sep_expressions = function
 			    | Max (left2, right2) ->

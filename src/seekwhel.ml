@@ -300,13 +300,33 @@ module Make (C : Connection) = struct
 	    | Bool_null : bool -> bool option expr
 	    | Custom_null : 'a custom_expr -> 'a option expr
 
-	    (* Functions *)
-	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
+	    (* Math functions *)
 	    | Random : float expr
 	    | Sqrti : int expr -> float expr
 	    | Sqrtf : float expr -> float expr
 	    | Addi : int expr * int expr -> int expr
 	    | Addf : float expr * float expr -> float expr
+	    | Multi : int expr * int expr -> int expr
+	    | Multf : float expr * float expr -> float expr
+	    | Divi : int expr * int expr -> int expr
+	    | Divf : float expr * float expr -> float expr
+	    | Mod : int expr * int expr -> int expr
+	    | Expf : float expr * float expr -> float expr
+	    | Absi : int expr -> int expr
+	    | Absf : float expr -> float expr
+	    | Round : float expr * int -> float expr
+	    | Ceil : float expr -> int expr
+	    | Trunc : float expr -> int expr
+
+	    (* String functions *)
+	    | Concat : string expr * string expr -> string expr
+	    | CharLength : string expr -> int expr
+	    | Lower : string expr -> string expr
+	    | Upper : string expr -> string expr
+	    | Regex : string expr * string * bool -> bool expr (* bool: case sensitive *)
+
+	    (* Date functions *)
+	    | LocalTimeStamp : Calendar.t expr
 
 	    (* Boolean *)
 	    | IsNull : ('a option) expr -> bool expr
@@ -343,6 +363,7 @@ module Make (C : Connection) = struct
 	    | AllLt : 'a expr * t -> bool expr
 
 	    (* Other *)
+	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
 	    | Casti : 'a expr -> int expr
 	    | Castf : 'a expr -> float expr
 	    | Castt : 'a expr -> string expr
@@ -398,6 +419,7 @@ module Make (C : Connection) = struct
 	    | Float_null _ -> true
 	    | Text_null _ -> true
 	    | Date_null _ -> true
+	    | LocalTimeStamp -> true
 	    | _ -> false
 
 	let is_and = function
@@ -432,6 +454,9 @@ module Make (C : Connection) = struct
 		see explanation above *)
 		in let nsim_eas x1 x2 sep = nsim_soe x1 ^ sep ^ nsim_soe x2
 
+		(* not simple, expr within func *)
+		and nsim_ewf x f = f ^ wp (nsim_soe x)
+
 		and concat_any_expr xs = 
 		    xs
 			|> List.map (fun (AnyExpr x) -> nsim_soe x)
@@ -446,12 +471,14 @@ module Make (C : Connection) = struct
 		in let sep_between_x_sel x sep sel =
 		    nsim_soe x ^ sep ^ select_wp sel
 
+		and escaped_string s = "'" ^ (C.connection#escape_string s) ^ "'"
+
 		in match expr with
 		    | Column c -> quoted_string_of_column c
 
 		    | Int i -> string_of_int i
 		    | Float f -> string_of_float f
-		    | Text s -> "'" ^ (C.connection#escape_string s) ^ "'"
+		    | Text s -> escaped_string s
 		    | Date d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
 		    | Bool b -> string_of_bool b
 		    | Custom {value; to_psql_string} -> to_psql_string value
@@ -459,7 +486,7 @@ module Make (C : Connection) = struct
 		    | Null -> "NULL"
 		    | Int_null i -> string_of_int i
 		    | Float_null f -> string_of_float f
-		    | Text_null s -> "'" ^ (C.connection#escape_string s) ^ "'"
+		    | Text_null s -> escaped_string s
 		    | Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
 		    | Bool_null b -> string_of_bool b
 		    | Custom_null {value; to_psql_string} -> to_psql_string value
@@ -470,6 +497,28 @@ module Make (C : Connection) = struct
 		    | Sqrtf x -> "|/ " ^ nsim_soe x
 		    | Addi (x1, x2) -> nsim_eas x1 x2 " + "
 		    | Addf (x1, x2) -> nsim_eas x1 x2 " + "
+		    | Multi (x1, x2) -> nsim_eas x1 x2 " * "
+		    | Multf (x1, x2) -> nsim_eas x1 x2 " * "
+		    | Divi (x1, x2) -> nsim_eas x1 x2 " / "
+		    | Divf (x1, x2) -> nsim_eas x1 x2 " / "
+		    | Mod (x1, x2) -> nsim_eas x1 x2 " % "
+		    | Expf (x1, x2) -> nsim_eas x1 x2 " ^ "
+		    | Absi x -> "@ " ^ nsim_soe x
+		    | Absf x -> "@ " ^ nsim_soe x
+		    | Round (x, i) -> "round(" ^ nsim_soe x ^ ", " ^ string_of_int i ^ ")"
+		    | Ceil x -> "ceil(" ^ nsim_soe x ^ ")"
+		    | Trunc x -> "trunc(" ^ nsim_soe x ^ ")"
+
+		    | Concat (s1, s2) -> nsim_soe s1 ^ " || " ^ nsim_soe s2
+		    | CharLength x -> nsim_ewf x "char_length"
+		    | Lower x -> nsim_ewf x "lower"
+		    | Upper x -> nsim_ewf x "upper"
+		    | Regex (x, r, sensitive) ->
+			let op = if sensitive then " ~ " else " ~* "
+			in
+			    nsim_soe x ^ op ^ escaped_string r
+
+		    | LocalTimeStamp -> "LOCALTIMESTAMP"
 
 		    | IsNull x -> nsim_soe x ^ " IS NULL"
 		    | Eq (x1, x2) -> nsim_eas x1 x2 " = "
@@ -728,6 +777,25 @@ module Make (C : Connection) = struct
 	    | Sqrtf _ -> float_of_string s
 	    | Addi _ -> int_of_string s
 	    | Addf _ -> float_of_string s
+	    | Multi _ -> int_of_string s
+	    | Multf _ -> float_of_string s
+	    | Divi _ -> int_of_string s
+	    | Divf _ -> float_of_string s
+	    | Mod _ -> int_of_string s
+	    | Expf _ -> float_of_string s
+	    | Absi _ -> int_of_string s
+	    | Absf _ -> float_of_string s
+	    | Round _ -> float_of_string s
+	    | Ceil _ -> int_of_string s
+	    | Trunc _ -> int_of_string s
+
+	    | Concat _ -> s
+	    | CharLength _ -> int_of_string s
+	    | Lower _ -> s
+	    | Upper _ -> s
+	    | Regex _ -> bool_of_string s
+
+	    | LocalTimeStamp -> date_of_string s
 
 	    | IsNull _ -> bool_of_string s
 	    | Eq _ -> bool_of_string s

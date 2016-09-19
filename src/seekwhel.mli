@@ -74,6 +74,7 @@ module Make : functor (C : Connection)
 
 	include Query
 
+
 	type 'a expr =
 	    (* Column *)
 	    | Column : 'a column -> 'a expr
@@ -95,13 +96,33 @@ module Make : functor (C : Connection)
 	    | Bool_null : bool -> bool option expr
 	    | Custom_null : 'a custom_expr -> 'a option expr
 
-	    (* Functions *)
-	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
+	    (* Math functions *)
 	    | Random : float expr
 	    | Sqrti : int expr -> float expr
 	    | Sqrtf : float expr -> float expr
 	    | Addi : int expr * int expr -> int expr
 	    | Addf : float expr * float expr -> float expr
+	    | Multi : int expr * int expr -> int expr
+	    | Multf : float expr * float expr -> float expr
+	    | Divi : int expr * int expr -> int expr
+	    | Divf : float expr * float expr -> float expr
+	    | Mod : int expr * int expr -> int expr
+	    | Expf : float expr * float expr -> float expr
+	    | Absi : int expr -> int expr
+	    | Absf : float expr -> float expr
+	    | Round : float expr * int -> float expr
+	    | Ceil : float expr -> int expr
+	    | Trunc : float expr -> int expr
+
+	    (* String functions *)
+	    | Concat : string expr * string expr -> string expr
+	    | CharLength : string expr -> int expr
+	    | Lower : string expr -> string expr
+	    | Upper : string expr -> string expr
+	    | Regex : string expr * string * bool -> bool expr (* bool: case sensitive *)
+
+	    (* Date functions *)
+	    | LocalTimeStamp : Calendar.t expr
 
 	    (* Boolean *)
 	    | IsNull : ('a option) expr -> bool expr
@@ -138,6 +159,7 @@ module Make : functor (C : Connection)
 	    | AllLt : 'a expr * t -> bool expr
 
 	    (* Other *)
+	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
 	    | Casti : 'a expr -> int expr
 	    | Castf : 'a expr -> float expr
 	    | Castt : 'a expr -> string expr

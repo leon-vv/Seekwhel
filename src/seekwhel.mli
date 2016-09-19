@@ -128,9 +128,7 @@ module Make : functor (C : Connection)
 	    | IsNull : ('a option) expr -> bool expr
 	    | Eq : 'a expr * 'a expr -> bool expr
 	    | GT : 'a expr * 'a expr -> bool expr
-	    | GTE : 'a expr * 'a expr -> bool expr
 	    | LT : 'a expr * 'a expr -> bool expr
-	    | LTE : 'a expr * 'a expr -> bool expr
 	    | Not : bool expr -> bool expr
 	    | And : bool expr * bool expr -> bool expr
 	    | Or : bool expr * bool expr -> bool expr

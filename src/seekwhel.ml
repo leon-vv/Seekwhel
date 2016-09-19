@@ -428,26 +428,16 @@ module Make (C : Connection) = struct
 	    | Or _ -> true
 	    | _ -> false
 
-	let rec nsim_soe x =
+	let within_paren s = "(" ^ s ^ ")"
+
+	let rec nsim_soe : type a. a expr -> string = fun x ->
 	    if is_simple_value_constructor x then string_of_expr x
-	    else "(" ^ string_of_expr x ^ ")"
+	    else x |> string_of_expr |> within_paren
 
 	and string_of_expr : type a. a expr -> string =
 	    fun expr ->
-		let soe = string_of_expr
+		let wp = within_paren
 
-		(* within parentheses *)
-		and wp s = "(" ^ s ^ ")"
-
-		(* expr within parentheses *)
-		in let expr_wp : type a. a expr -> string  = fun x -> wp (soe x)
-
-		(* not simple, string of expression.
-		Add parentheses if x is not a simple expression *)
-		in let nsim_soe x =
-		    if is_simple_value_constructor x then soe x
-		    else expr_wp x
-		
 		(* not simple, expr around separator,
 		see explanation above *)
 		in let nsim_eas x1 x2 sep = nsim_soe x1 ^ sep ^ nsim_soe x2
@@ -489,7 +479,7 @@ module Make (C : Connection) = struct
 		    | BoolNull b -> string_of_bool b
 		    | CustomNull {value; to_psql_string} -> to_psql_string value
 
-		    | Coalesce (x1, x2) -> "COALESCE(" ^ soe x1 ^ ", " ^ soe x2 ^ ")"
+		    | Coalesce (x1, x2) -> "COALESCE(" ^ nsim_soe x1 ^ ", " ^ nsim_soe x2 ^ ")"
 		    | Random -> "RANDOM()"
 		    | Sqrti x -> "|/ " ^ nsim_soe x
 		    | Sqrtr x -> "|/ " ^ nsim_soe x
@@ -522,19 +512,21 @@ module Make (C : Connection) = struct
 		    | Eq (x1, x2) -> nsim_eas x1 x2 " = "
 		    | GT (x1, x2) -> nsim_eas x1 x2 " > "
 		    | LT (x1, x2) -> nsim_eas x1 x2 " < "
-		    | Not x -> "NOT " ^ expr_wp x
+		    | Not x -> "NOT " ^ nsim_soe x
 
 		    (* Some special checks to reduce parentheses
 		    in ouput. This makes the query easier to read for humans,
 		    which are the target specicies for this library. *)
 		    | And (x1, x2) ->
-			let left = if is_and x1 then soe x1 else expr_wp x1
-			and right = if is_and x2 then soe x2 else expr_wp x2
+			let left = if is_and x1 then string_of_expr x1 else nsim_soe x1
+			and right = if is_and x2 then string_of_expr x2 else nsim_soe x2
 			in left ^ " AND " ^ right
+
 		    | Or (x1, x2) ->
-			let left = if is_or x1 then soe x1 else expr_wp x1
-			and right = if is_or x2 then soe x2 else expr_wp x2
+			let left = if is_or x1 then string_of_expr x1 else nsim_soe x1
+			and right = if is_or x2 then string_of_expr x2 else nsim_soe x2
 			in left ^ " OR " ^ right
+
 		    | In (x1, xs) ->
 			nsim_soe x1 ^ " IN " ^ 
 			wp (String.concat ", " (List.map nsim_soe xs))
@@ -546,7 +538,7 @@ module Make (C : Connection) = struct
 				| Case _ -> when_of_case else_
 				| _ -> "ELSE " ^ nsim_soe else_)
 			    ^ "\nEND\t"*)
-			
+
 			"CASE WHEN " ^ nsim_soe cond ^ " THEN " ^ nsim_soe then_
 			^ " ELSE " ^ nsim_soe else_ ^ " END"
 		    | Max (left1, right1) ->

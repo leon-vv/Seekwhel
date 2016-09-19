@@ -136,6 +136,13 @@ module Make : functor (C : Connection)
 
 	    | AllGt : 'a expr * t -> bool expr
 	    | AllLt : 'a expr * t -> bool expr
+
+	    (* Other *)
+	    | Casti : 'a expr -> int expr
+	    | Castf : 'a expr -> float expr
+	    | Castt : 'a expr -> string expr
+	    | Castd : 'a expr -> Calendar.t expr
+
 	and any_expr = 
 	    | AnyExpr : 'a expr -> any_expr
 	and target = any_expr array

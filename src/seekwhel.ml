@@ -341,6 +341,12 @@ module Make (C : Connection) = struct
 
 	    | AllGt : 'a expr * t -> bool expr
 	    | AllLt : 'a expr * t -> bool expr
+
+	    (* Other *)
+	    | Casti : 'a expr -> int expr
+	    | Castf : 'a expr -> float expr
+	    | Castt : 'a expr -> string expr
+	    | Castd : 'a expr -> Calendar.t expr
 	and any_expr = 
 	    | AnyExpr : 'a expr -> any_expr
 	and order_by = {
@@ -536,6 +542,11 @@ module Make (C : Connection) = struct
 
 		    | AllGt (x, select) -> sep_between_x_sel x " > ALL " select
 		    | AllLt (x, select) -> sep_between_x_sel x " < ALL " select
+		    
+		    | Casti expr -> "CAST(" ^ nsim_soe expr ^ " AS INT)"
+		    | Castf expr -> "CAST(" ^ nsim_soe expr ^ " AS DOUBLE PRECISION)"
+		    | Castt expr -> "CAST(" ^ nsim_soe expr ^ " AS TEXT)"
+		    | Castd expr -> "CAST(" ^ nsim_soe expr ^ " AS TIMESTAMP)"
 
 	and where_clause_of_optional_expr = function
 	    | None -> ""
@@ -745,6 +756,11 @@ module Make (C : Connection) = struct
 	    | AllEqN _ -> bool_of_string s
 	    | AllGt _ -> bool_of_string s
 	    | AllLt _ -> bool_of_string s
+
+	    | Casti x -> int_of_string s
+	    | Castf x -> float_of_string s
+	    | Castt x -> s
+	    | Castd x -> date_of_string s
 
 
 	let expr_value_opt (qres, target) row expr =

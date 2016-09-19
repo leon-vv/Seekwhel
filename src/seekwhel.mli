@@ -34,23 +34,23 @@ module Make : functor (C : Connection)
 	to_psql_string : 'a -> string
     } ;;
 
-
     type 'a column =
 	| Columni : string -> int column
-	| Columnf : string -> float column
+	| Columndp : string -> float column
 	| Columnt : string -> string column
 	| Columnd : string -> Calendar.t column
 	| Columnb : string -> bool column
 	| Column_custom : 'a custom_column -> 'a column
+
 	(* Nullable *)
 	| Columni_null : string -> int option column
-	| Columnf_null : string -> float option column
+	| Columndp_null : string -> float option column
 	| Columnt_null : string -> string option column
 	| Columnd_null : string -> Calendar.t option column
 	| Columnb_null : string -> bool option column
 	| Column_custom_null : 'a custom_column -> 'a option column
+    
 
-	
     val ( <|| ): 'a column -> string -> 'a column 
 
     module type Query = sig
@@ -81,7 +81,7 @@ module Make : functor (C : Connection)
 
 	    (* Values *)
 	    | Int : int -> int expr
-	    | Float : float -> float expr
+	    | DoublePrecision : float -> float expr
 	    | Text : string -> string expr
 	    | Date : Calendar.t -> Calendar.t expr
 	    | Bool : bool -> bool expr
@@ -90,7 +90,7 @@ module Make : functor (C : Connection)
 	    (* Nullable values *)
 	    | Null : ('a option) expr
 	    | Int_null : int -> int option expr
-	    | Float_null : float -> float option expr
+	    | DoublePrecision_null : float -> float option expr
 	    | Text_null : string -> string option expr
 	    | Date_null : Calendar.t -> Calendar.t option expr
 	    | Bool_null : bool -> bool option expr
@@ -99,17 +99,17 @@ module Make : functor (C : Connection)
 	    (* Math functions *)
 	    | Random : float expr
 	    | Sqrti : int expr -> float expr
-	    | Sqrtf : float expr -> float expr
+	    | Sqrtdp : float expr -> float expr
 	    | Addi : int expr * int expr -> int expr
-	    | Addf : float expr * float expr -> float expr
+	    | Adddp : float expr * float expr -> float expr
 	    | Multi : int expr * int expr -> int expr
-	    | Multf : float expr * float expr -> float expr
+	    | Multdp : float expr * float expr -> float expr
 	    | Divi : int expr * int expr -> int expr
-	    | Divf : float expr * float expr -> float expr
+	    | Divdp : float expr * float expr -> float expr
 	    | Mod : int expr * int expr -> int expr
-	    | Expf : float expr * float expr -> float expr
+	    | Expdp : float expr * float expr -> float expr
 	    | Absi : int expr -> int expr
-	    | Absf : float expr -> float expr
+	    | Absdp : float expr -> float expr
 	    | Round : float expr * int -> float expr
 	    | Ceil : float expr -> int expr
 	    | Trunc : float expr -> int expr
@@ -159,7 +159,7 @@ module Make : functor (C : Connection)
 	    (* Other *)
 	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
 	    | Casti : 'a expr -> int expr
-	    | Castf : 'a expr -> float expr
+	    | Castdp : 'a expr -> float expr
 	    | Castt : 'a expr -> string expr
 	    | Castd : 'a expr -> Calendar.t expr
 

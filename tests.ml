@@ -143,7 +143,7 @@ let safely_quote_column_test () =
 module String_of_expr_test = struct
 
     (* Column *)
-    let price_col = Columnf "price"
+    let price_col = Columndp "price"
     let stock_col = Columni "stock"
     let name_col = Columnt "name"
     let date_col = Columnd "date"
@@ -152,7 +152,7 @@ module String_of_expr_test = struct
 
     (* Values *)
     let i = Int 10
-    let f = Float 20.3
+    let f = DoublePrecision 20.3
     let t = Text "This is' som'e text"
     let d = Date date
 
@@ -160,7 +160,7 @@ module String_of_expr_test = struct
 
     (* Nullable values *)
     let int_null = Int_null 100
-    let float_null = Float_null 200.0
+    let float_null = DoublePrecision_null 200.0
     let text_null = Text_null "Some other text"
     let date_null = Date_null date
 
@@ -168,13 +168,13 @@ module String_of_expr_test = struct
     let coalesce = Coalesce (int_null, i)
     let random = Random
     let sqrti = Sqrti i
-    let sqrtf = Sqrtf f
+    let sqrtf = Sqrtdp f
     let addi = Addi (i, i)
-    let addf = Addf (f, f)
+    let addf = Adddp (f, f)
 
     (* Boolean *)
     let is_null = IsNull int_null
-    let eq = Eq (Column price_col, Float 10.0)
+    let eq = Eq (Column price_col, DoublePrecision 10.0)
     let gt = GT (Column stock_col, Int 5)
     let lt = LT (Text "def", Column name_col)
     let not_ = Not eq

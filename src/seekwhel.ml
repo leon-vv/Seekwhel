@@ -39,7 +39,7 @@ module Make (C : Connection) = struct
 
     type 'a column =
 	| Columni : string -> int column
-	| Columnf : string -> float column
+	| Columndp : string -> float column
 	| Columnt : string -> string column
 	| Columnd : string -> Calendar.t column
 	| Columnb : string -> bool column
@@ -47,7 +47,7 @@ module Make (C : Connection) = struct
 
 	(* Nullable *)
 	| Columni_null : string -> int option column
-	| Columnf_null : string -> float option column
+	| Columndp_null : string -> float option column
 	| Columnt_null : string -> string option column
 	| Columnd_null : string -> Calendar.t option column
 	| Columnb_null : string -> bool option column
@@ -103,14 +103,14 @@ module Make (C : Connection) = struct
 	let rtis = rename_table_in_string
 	in match c with
 	    | Columni cn -> Columni (rtis cn new_name)
-	    | Columnf cn -> Columnf (rtis cn new_name)
+	    | Columndp cn -> Columndp (rtis cn new_name)
 	    | Columnt cn -> Columnt (rtis cn new_name)
 	    | Columnd cn -> Columnd (rtis cn new_name)
 	    | Columnb cn -> Columnb (rtis cn new_name)
 	    | Column_custom ({name} as cust) -> Column_custom {cust with name = rtis name new_name}
 
 	    | Columni_null cn -> Columni_null (rtis cn new_name)
-	    | Columnf_null cn -> Columnf_null (rtis cn new_name)
+	    | Columndp_null cn -> Columndp_null (rtis cn new_name)
 	    | Columnt_null cn -> Columnt_null (rtis cn new_name)
 	    | Columnd_null cn -> Columnd_null (rtis cn new_name)
 	    | Columnb_null cn -> Columnb_null (rtis cn new_name)
@@ -198,14 +198,14 @@ module Make (C : Connection) = struct
     let string_of_column (type a) (c:a column) =
 	match c with
 	    | Columni s -> s
-	    | Columnf s -> s
+	    | Columndp s -> s
 	    | Columnt s -> s
 	    | Columnd s -> s
 	    | Columnb s -> s
 	    | Column_custom {name} -> name
 
 	    | Columni_null s -> s
-	    | Columnf_null s -> s
+	    | Columndp_null s -> s
 	    | Columnt_null s -> s
 	    | Columnd_null s -> s
 	    | Columnb_null s -> s
@@ -218,14 +218,14 @@ module Make (C : Connection) = struct
     let column_value_of_string (type a) (c:a column) (v:string): a =
 	match c with
 	    | Columni _ -> int_of_string v
-	    | Columnf _ -> float_of_string v
+	    | Columndp _ -> float_of_string v
 	    | Columnt _ -> v
 	    | Columnd _ -> date_of_string v
 	    | Columnb _ -> bool_of_string v
 	    | Column_custom { of_psql_string } -> of_psql_string v
     
 	    | Columni_null _ -> int_null_of_string v
-	    | Columnf_null _ -> float_null_of_string v
+	    | Columndp_null _ -> float_null_of_string v
 	    | Columnt_null _ -> string_null_of_string v
 	    | Columnd_null _ -> date_null_of_string v
 	    | Columnb_null _ -> bool_null_of_string v
@@ -285,7 +285,7 @@ module Make (C : Connection) = struct
 
 	    (* Values *)
 	    | Int : int -> int expr
-	    | Float : float -> float expr
+	    | DoublePrecision : float -> float expr
 	    | Text : string -> string expr
 	    | Date : Calendar.t -> Calendar.t expr
 	    | Bool : bool -> bool expr
@@ -294,7 +294,7 @@ module Make (C : Connection) = struct
 	    (* Nullable values *)
 	    | Null : ('a option) expr
 	    | Int_null : int -> int option expr
-	    | Float_null : float -> float option expr
+	    | DoublePrecision_null : float -> float option expr
 	    | Text_null : string -> string option expr
 	    | Date_null : Calendar.t -> Calendar.t option expr
 	    | Bool_null : bool -> bool option expr
@@ -303,17 +303,17 @@ module Make (C : Connection) = struct
 	    (* Math functions *)
 	    | Random : float expr
 	    | Sqrti : int expr -> float expr
-	    | Sqrtf : float expr -> float expr
+	    | Sqrtdp : float expr -> float expr
 	    | Addi : int expr * int expr -> int expr
-	    | Addf : float expr * float expr -> float expr
+	    | Adddp : float expr * float expr -> float expr
 	    | Multi : int expr * int expr -> int expr
-	    | Multf : float expr * float expr -> float expr
+	    | Multdp : float expr * float expr -> float expr
 	    | Divi : int expr * int expr -> int expr
-	    | Divf : float expr * float expr -> float expr
+	    | Divdp : float expr * float expr -> float expr
 	    | Mod : int expr * int expr -> int expr
-	    | Expf : float expr * float expr -> float expr
+	    | Expdp : float expr * float expr -> float expr
 	    | Absi : int expr -> int expr
-	    | Absf : float expr -> float expr
+	    | Absdp : float expr -> float expr
 	    | Round : float expr * int -> float expr
 	    | Ceil : float expr -> int expr
 	    | Trunc : float expr -> int expr
@@ -363,7 +363,7 @@ module Make (C : Connection) = struct
 	    (* Other *)
 	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
 	    | Casti : 'a expr -> int expr
-	    | Castf : 'a expr -> float expr
+	    | Castdp : 'a expr -> float expr
 	    | Castt : 'a expr -> string expr
 	    | Castd : 'a expr -> Calendar.t expr
 	and any_expr = 
@@ -409,12 +409,12 @@ module Make (C : Connection) = struct
 	    match x with
 	    | Column _ -> true
 	    | Int _ -> true
-	    | Float _ -> true
+	    | DoublePrecision _ -> true
 	    | Text _ -> true
 	    | Date _ -> true
 	    | Null -> true
 	    | Int_null _ -> true
-	    | Float_null _ -> true
+	    | DoublePrecision_null _ -> true
 	    | Text_null _ -> true
 	    | Date_null _ -> true
 	    | LocalTimeStamp -> true
@@ -475,7 +475,7 @@ module Make (C : Connection) = struct
 		    | Column c -> quoted_string_of_column c
 
 		    | Int i -> string_of_int i
-		    | Float f -> string_of_float f
+		    | DoublePrecision f -> string_of_float f
 		    | Text s -> escaped_string s
 		    | Date d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
 		    | Bool b -> string_of_bool b
@@ -483,7 +483,7 @@ module Make (C : Connection) = struct
 
 		    | Null -> "NULL"
 		    | Int_null i -> string_of_int i
-		    | Float_null f -> string_of_float f
+		    | DoublePrecision_null f -> string_of_float f
 		    | Text_null s -> escaped_string s
 		    | Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
 		    | Bool_null b -> string_of_bool b
@@ -492,17 +492,17 @@ module Make (C : Connection) = struct
 		    | Coalesce (x1, x2) -> "COALESCE(" ^ soe x1 ^ ", " ^ soe x2 ^ ")"
 		    | Random -> "RANDOM()"
 		    | Sqrti x -> "|/ " ^ nsim_soe x
-		    | Sqrtf x -> "|/ " ^ nsim_soe x
+		    | Sqrtdp x -> "|/ " ^ nsim_soe x
 		    | Addi (x1, x2) -> nsim_eas x1 x2 " + "
-		    | Addf (x1, x2) -> nsim_eas x1 x2 " + "
+		    | Adddp (x1, x2) -> nsim_eas x1 x2 " + "
 		    | Multi (x1, x2) -> nsim_eas x1 x2 " * "
-		    | Multf (x1, x2) -> nsim_eas x1 x2 " * "
+		    | Multdp (x1, x2) -> nsim_eas x1 x2 " * "
 		    | Divi (x1, x2) -> nsim_eas x1 x2 " / "
-		    | Divf (x1, x2) -> nsim_eas x1 x2 " / "
+		    | Divdp (x1, x2) -> nsim_eas x1 x2 " / "
 		    | Mod (x1, x2) -> nsim_eas x1 x2 " % "
-		    | Expf (x1, x2) -> nsim_eas x1 x2 " ^ "
+		    | Expdp (x1, x2) -> nsim_eas x1 x2 " ^ "
 		    | Absi x -> "@ " ^ nsim_soe x
-		    | Absf x -> "@ " ^ nsim_soe x
+		    | Absdp x -> "@ " ^ nsim_soe x
 		    | Round (x, i) -> "round(" ^ nsim_soe x ^ ", " ^ string_of_int i ^ ")"
 		    | Ceil x -> "ceil(" ^ nsim_soe x ^ ")"
 		    | Trunc x -> "trunc(" ^ nsim_soe x ^ ")"
@@ -589,7 +589,7 @@ module Make (C : Connection) = struct
 		    | AllLt (x, select) -> sep_between_x_sel x " < ALL " select
 		    
 		    | Casti expr -> "CAST(" ^ nsim_soe expr ^ " AS INT)"
-		    | Castf expr -> "CAST(" ^ nsim_soe expr ^ " AS DOUBLE PRECISION)"
+		    | Castdp expr -> "CAST(" ^ nsim_soe expr ^ " AS DOUBLE PRECISION)"
 		    | Castt expr -> "CAST(" ^ nsim_soe expr ^ " AS TEXT)"
 		    | Castd expr -> "CAST(" ^ nsim_soe expr ^ " AS TIMESTAMP)"
 
@@ -622,7 +622,7 @@ module Make (C : Connection) = struct
 		| Some v -> f v
 	    in match col with
 	    | Columni _ -> Int val_
-	    | Columnf _ -> Float val_
+	    | Columndp _ -> DoublePrecision val_
 	    | Columnt _ -> Text val_
 	    | Columnd _ -> Date val_
 	    | Columnb _ -> Bool val_
@@ -630,7 +630,7 @@ module Make (C : Connection) = struct
 		Custom { value = val_ ; to_psql_string ; of_psql_string }
 
 	    | Columni_null _ -> maybe_null val_ (fun v -> Int_null v)
-	    | Columnf_null _ -> maybe_null val_ (fun v -> Float_null v)
+	    | Columndp_null _ -> maybe_null val_ (fun v -> DoublePrecision_null v)
 	    | Columnt_null _ -> maybe_null val_ (fun v -> Text_null v)
 	    | Columnd_null _ -> maybe_null val_ (fun v -> Date_null v)
 	    | Columnb_null _ -> maybe_null val_ (fun v -> Bool_null v)
@@ -656,14 +656,14 @@ module Make (C : Connection) = struct
 	    and soe = string_of_expr
 	    in match c with
 		| Columni _ -> soe (Int v)
-		| Columnf _ -> soe (Float v)
+		| Columndp _ -> soe (DoublePrecision v)
 		| Columnt _ -> soe (Text v)
 		| Columnd _ -> soe (Date v)
 		| Columnb _ -> soe (Bool v)
 		| Column_custom {to_psql_string} -> to_psql_string v
 
 		| Columni_null _ -> maybe_null (fun i -> soe (Int_null i)) v
-		| Columnf_null _ -> maybe_null (fun f -> soe (Float_null f)) v
+		| Columndp_null _ -> maybe_null (fun f -> soe (DoublePrecision_null f)) v
 		| Columnt_null _ -> maybe_null (fun s -> soe (Text_null s)) v
 		| Columnd_null _ -> maybe_null (fun d -> soe (Date_null d)) v
 		| Columnb_null _ -> maybe_null (fun b -> soe (Bool_null b)) v
@@ -752,7 +752,7 @@ module Make (C : Connection) = struct
 	    in match e with
 	    | Column c -> column_value_of_string c s
 	    | Int _ -> int_of_string s 
-	    | Float _ -> float_of_string s
+	    | DoublePrecision _ -> float_of_string s
 	    | Text _ -> s
 	    | Date _ -> date_of_string s
 	    | Bool _ -> bool_of_string s
@@ -760,7 +760,7 @@ module Make (C : Connection) = struct
 
 	    | Null -> None
 	    | Int_null _ -> maybe_null int_null_of_string
-	    | Float_null _ -> maybe_null float_null_of_string
+	    | DoublePrecision_null _ -> maybe_null float_null_of_string
 	    | Text_null _ -> maybe_null string_null_of_string
 	    | Date_null _ -> maybe_null date_null_of_string
 	    | Bool_null _ -> maybe_null bool_null_of_string
@@ -770,17 +770,17 @@ module Make (C : Connection) = struct
 	    | Coalesce (_, x) -> expression_value_of_string x is_null s
 	    | Random -> float_of_string s
 	    | Sqrti _ -> float_of_string s
-	    | Sqrtf _ -> float_of_string s
+	    | Sqrtdp _ -> float_of_string s
 	    | Addi _ -> int_of_string s
-	    | Addf _ -> float_of_string s
+	    | Adddp _ -> float_of_string s
 	    | Multi _ -> int_of_string s
-	    | Multf _ -> float_of_string s
+	    | Multdp _ -> float_of_string s
 	    | Divi _ -> int_of_string s
-	    | Divf _ -> float_of_string s
+	    | Divdp _ -> float_of_string s
 	    | Mod _ -> int_of_string s
-	    | Expf _ -> float_of_string s
+	    | Expdp _ -> float_of_string s
 	    | Absi _ -> int_of_string s
-	    | Absf _ -> float_of_string s
+	    | Absdp _ -> float_of_string s
 	    | Round _ -> float_of_string s
 	    | Ceil _ -> int_of_string s
 	    | Trunc _ -> int_of_string s
@@ -820,7 +820,7 @@ module Make (C : Connection) = struct
 	    | AllLt _ -> bool_of_string s
 
 	    | Casti x -> int_of_string s
-	    | Castf x -> float_of_string s
+	    | Castdp x -> float_of_string s
 	    | Castt x -> s
 	    | Castd x -> date_of_string s
 

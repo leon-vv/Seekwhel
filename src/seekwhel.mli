@@ -43,12 +43,12 @@ module Make : functor (C : Connection)
 	| Column_custom : 'a custom_column -> 'a column
 
 	(* Nullable *)
-	| Columni_null : string -> int option column
-	| Columnr_null : string -> float option column
-	| Columnt_null : string -> string option column
-	| Columnd_null : string -> Calendar.t option column
-	| Columnb_null : string -> bool option column
-	| Column_custom_null : 'a custom_column -> 'a option column
+	| ColumniNull : string -> int option column
+	| ColumnrNull : string -> float option column
+	| ColumntNull : string -> string option column
+	| ColumndNull : string -> Calendar.t option column
+	| ColumnbNull : string -> bool option column
+	| ColumnCustomNull : 'a custom_column -> 'a option column
     
 
     val ( <|| ): 'a column -> string -> 'a column 
@@ -88,12 +88,12 @@ module Make : functor (C : Connection)
 
 	    (* Nullable values *)
 	    | Null : ('a option) expr
-	    | Int_null : int -> int option expr
-	    | Real_null : float -> float option expr
-	    | Text_null : string -> string option expr
-	    | Date_null : Calendar.t -> Calendar.t option expr
-	    | Bool_null : bool -> bool option expr
-	    | Custom_null : 'a custom_expr -> 'a option expr
+	    | IntNull : int -> int option expr
+	    | RealNull : float -> float option expr
+	    | TextNull : string -> string option expr
+	    | DateNull : Calendar.t -> Calendar.t option expr
+	    | BoolNull : bool -> bool option expr
+	    | CustomNull : 'a custom_expr -> 'a option expr
 
 	    (* Math functions *)
 	    | Random : float expr

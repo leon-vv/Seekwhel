@@ -46,12 +46,12 @@ module Make (C : Connection) = struct
 	| Column_custom : 'a custom_column -> 'a column
 
 	(* Nullable *)
-	| Columni_null : string -> int option column
-	| Columnr_null : string -> float option column
-	| Columnt_null : string -> string option column
-	| Columnd_null : string -> Calendar.t option column
-	| Columnb_null : string -> bool option column
-	| Column_custom_null : 'a custom_column -> 'a option column
+	| ColumniNull : string -> int option column
+	| ColumnrNull : string -> float option column
+	| ColumntNull : string -> string option column
+	| ColumndNull : string -> Calendar.t option column
+	| ColumnbNull : string -> bool option column
+	| ColumnCustomNull : 'a custom_column -> 'a option column
     
     (* of_string function for each type *)
     (* int_of_string, float_of_string, bool_of_string *)
@@ -109,12 +109,12 @@ module Make (C : Connection) = struct
 	    | Columnb cn -> Columnb (rtis cn new_name)
 	    | Column_custom ({name} as cust) -> Column_custom {cust with name = rtis name new_name}
 
-	    | Columni_null cn -> Columni_null (rtis cn new_name)
-	    | Columnr_null cn -> Columnr_null (rtis cn new_name)
-	    | Columnt_null cn -> Columnt_null (rtis cn new_name)
-	    | Columnd_null cn -> Columnd_null (rtis cn new_name)
-	    | Columnb_null cn -> Columnb_null (rtis cn new_name)
-	    | Column_custom_null ({name} as cust) -> Column_custom_null {cust with name = rtis name new_name}
+	    | ColumniNull cn -> ColumniNull (rtis cn new_name)
+	    | ColumnrNull cn -> ColumnrNull (rtis cn new_name)
+	    | ColumntNull cn -> ColumntNull (rtis cn new_name)
+	    | ColumndNull cn -> ColumndNull (rtis cn new_name)
+	    | ColumnbNull cn -> ColumnbNull (rtis cn new_name)
+	    | ColumnCustomNull ({name} as cust) -> ColumnCustomNull {cust with name = rtis name new_name}
 
     let ( <|| ) = rename_table
 
@@ -204,12 +204,12 @@ module Make (C : Connection) = struct
 	    | Columnb s -> s
 	    | Column_custom {name} -> name
 
-	    | Columni_null s -> s
-	    | Columnr_null s -> s
-	    | Columnt_null s -> s
-	    | Columnd_null s -> s
-	    | Columnb_null s -> s
-	    | Column_custom_null {name} -> name
+	    | ColumniNull s -> s
+	    | ColumnrNull s -> s
+	    | ColumntNull s -> s
+	    | ColumndNull s -> s
+	    | ColumnbNull s -> s
+	    | ColumnCustomNull {name} -> name
 
 
     let quoted_string_of_column c = 
@@ -224,12 +224,12 @@ module Make (C : Connection) = struct
 	    | Columnb _ -> bool_of_string v
 	    | Column_custom { of_psql_string } -> of_psql_string v
     
-	    | Columni_null _ -> int_null_of_string v
-	    | Columnr_null _ -> float_null_of_string v
-	    | Columnt_null _ -> string_null_of_string v
-	    | Columnd_null _ -> date_null_of_string v
-	    | Columnb_null _ -> bool_null_of_string v
-	    | Column_custom_null { of_psql_string } -> Some (of_psql_string v)
+	    | ColumniNull _ -> int_null_of_string v
+	    | ColumnrNull _ -> float_null_of_string v
+	    | ColumntNull _ -> string_null_of_string v
+	    | ColumndNull _ -> date_null_of_string v
+	    | ColumnbNull _ -> bool_null_of_string v
+	    | ColumnCustomNull { of_psql_string } -> Some (of_psql_string v)
 
     module type Query = sig
 	type t
@@ -293,12 +293,12 @@ module Make (C : Connection) = struct
 
 	    (* Nullable values *)
 	    | Null : ('a option) expr
-	    | Int_null : int -> int option expr
-	    | Real_null : float -> float option expr
-	    | Text_null : string -> string option expr
-	    | Date_null : Calendar.t -> Calendar.t option expr
-	    | Bool_null : bool -> bool option expr
-	    | Custom_null : 'a custom_expr -> 'a option expr
+	    | IntNull : int -> int option expr
+	    | RealNull : float -> float option expr
+	    | TextNull : string -> string option expr
+	    | DateNull : Calendar.t -> Calendar.t option expr
+	    | BoolNull : bool -> bool option expr
+	    | CustomNull : 'a custom_expr -> 'a option expr
 
 	    (* Math functions *)
 	    | Random : float expr
@@ -413,10 +413,10 @@ module Make (C : Connection) = struct
 	    | Text _ -> true
 	    | Date _ -> true
 	    | Null -> true
-	    | Int_null _ -> true
-	    | Real_null _ -> true
-	    | Text_null _ -> true
-	    | Date_null _ -> true
+	    | IntNull _ -> true
+	    | RealNull _ -> true
+	    | TextNull _ -> true
+	    | DateNull _ -> true
 	    | LocalTimeStamp -> true
 	    | _ -> false
 
@@ -482,12 +482,12 @@ module Make (C : Connection) = struct
 		    | Custom {value; to_psql_string} -> to_psql_string value
 
 		    | Null -> "NULL"
-		    | Int_null i -> string_of_int i
-		    | Real_null f -> string_of_float f
-		    | Text_null s -> escaped_string s
-		    | Date_null d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
-		    | Bool_null b -> string_of_bool b
-		    | Custom_null {value; to_psql_string} -> to_psql_string value
+		    | IntNull i -> string_of_int i
+		    | RealNull f -> string_of_float f
+		    | TextNull s -> escaped_string s
+		    | DateNull d -> "'" ^ (Printer.Calendar.to_string d) ^ "'"
+		    | BoolNull b -> string_of_bool b
+		    | CustomNull {value; to_psql_string} -> to_psql_string value
 
 		    | Coalesce (x1, x2) -> "COALESCE(" ^ soe x1 ^ ", " ^ soe x2 ^ ")"
 		    | Random -> "RANDOM()"
@@ -629,14 +629,14 @@ module Make (C : Connection) = struct
 	    | Column_custom {to_psql_string; of_psql_string } ->
 		Custom { value = val_ ; to_psql_string ; of_psql_string }
 
-	    | Columni_null _ -> maybe_null val_ (fun v -> Int_null v)
-	    | Columnr_null _ -> maybe_null val_ (fun v -> Real_null v)
-	    | Columnt_null _ -> maybe_null val_ (fun v -> Text_null v)
-	    | Columnd_null _ -> maybe_null val_ (fun v -> Date_null v)
-	    | Columnb_null _ -> maybe_null val_ (fun v -> Bool_null v)
-	    | Column_custom_null {to_psql_string ; of_psql_string } ->
+	    | ColumniNull _ -> maybe_null val_ (fun v -> IntNull v)
+	    | ColumnrNull _ -> maybe_null val_ (fun v -> RealNull v)
+	    | ColumntNull _ -> maybe_null val_ (fun v -> TextNull v)
+	    | ColumndNull _ -> maybe_null val_ (fun v -> DateNull v)
+	    | ColumnbNull _ -> maybe_null val_ (fun v -> BoolNull v)
+	    | ColumnCustomNull {to_psql_string ; of_psql_string } ->
 		maybe_null val_ (fun v ->
-		    Custom_null { value = v ; to_psql_string ; of_psql_string })
+		    CustomNull { value = v ; to_psql_string ; of_psql_string })
 
 	    
 	type 'a expr_or_default =
@@ -662,12 +662,12 @@ module Make (C : Connection) = struct
 		| Columnb _ -> soe (Bool v)
 		| Column_custom {to_psql_string} -> to_psql_string v
 
-		| Columni_null _ -> maybe_null (fun i -> soe (Int_null i)) v
-		| Columnr_null _ -> maybe_null (fun f -> soe (Real_null f)) v
-		| Columnt_null _ -> maybe_null (fun s -> soe (Text_null s)) v
-		| Columnd_null _ -> maybe_null (fun d -> soe (Date_null d)) v
-		| Columnb_null _ -> maybe_null (fun b -> soe (Bool_null b)) v
-		| Column_custom_null {to_psql_string} -> maybe_null (fun c ->  to_psql_string c) v
+		| ColumniNull _ -> maybe_null (fun i -> soe (IntNull i)) v
+		| ColumnrNull _ -> maybe_null (fun f -> soe (RealNull f)) v
+		| ColumntNull _ -> maybe_null (fun s -> soe (TextNull s)) v
+		| ColumndNull _ -> maybe_null (fun d -> soe (DateNull d)) v
+		| ColumnbNull _ -> maybe_null (fun b -> soe (BoolNull b)) v
+		| ColumnCustomNull {to_psql_string} -> maybe_null (fun c ->  to_psql_string c) v
 
 	let string_of_column_and_opt_expr (ColumnEqDefault (col, opt_expr)) = 
 	    (string_of_column col, match opt_expr with
@@ -759,12 +759,12 @@ module Make (C : Connection) = struct
 	    | Custom {of_psql_string} -> of_psql_string s
 
 	    | Null -> None
-	    | Int_null _ -> maybe_null int_null_of_string
-	    | Real_null _ -> maybe_null float_null_of_string
-	    | Text_null _ -> maybe_null string_null_of_string
-	    | Date_null _ -> maybe_null date_null_of_string
-	    | Bool_null _ -> maybe_null bool_null_of_string
-	    | Custom_null {of_psql_string} ->
+	    | IntNull _ -> maybe_null int_null_of_string
+	    | RealNull _ -> maybe_null float_null_of_string
+	    | TextNull _ -> maybe_null string_null_of_string
+	    | DateNull _ -> maybe_null date_null_of_string
+	    | BoolNull _ -> maybe_null bool_null_of_string
+	    | CustomNull {of_psql_string} ->
 		maybe_null (fun s -> Some (of_psql_string s))
 
 	    | Coalesce (_, x) -> expression_value_of_string x is_null s

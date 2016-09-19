@@ -159,10 +159,10 @@ module String_of_expr_test = struct
     let n = Null
 
     (* Nullable values *)
-    let int_null = Int_null 100
-    let float_null = Real_null 200.0
-    let text_null = Text_null "Some other text"
-    let date_null = Date_null date
+    let int_null = IntNull 100
+    let float_null = RealNull 200.0
+    let text_null = TextNull "Some other text"
+    let date_null = DateNull date
 
     (* Functions *)
     let coalesce = Coalesce (int_null, i)
@@ -299,7 +299,7 @@ module Person = struct
     let parent_s = "parent"
     
     let name_col = Columnt name_s
-    let parent_col = Columnt_null parent_s
+    let parent_col = ColumntNull parent_s
 
     let primary_key = [| name_s |]
 

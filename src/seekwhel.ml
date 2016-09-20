@@ -747,42 +747,50 @@ module Make (C : Connection) = struct
 	let rec expression_value_of_string : type a. a expr -> bool -> string -> a = fun e is_null s ->
 	    let maybe_null f =
 		if is_null then None
+		else Some (f s)
+
+	    (* Because of table joins every column can be null *)
+	    and throw_if_null f =
+		if is_null then seekwhel_fail "Non-nullable column is null; use is_null when joining tables"
 		else f s
+
+	    in let mn = maybe_null
+	    and tin = throw_if_null
+
 	    in match e with
-	    | Column c -> column_value_of_string c s
-	    | Int _ -> int_of_string s 
-	    | Real _ -> float_of_string s
-	    | Text _ -> s
-	    | Date _ -> date_of_string s
-	    | Bool _ -> bool_of_string s
-	    | Custom {of_psql_string} -> of_psql_string s
+	    | Column c -> tin (column_value_of_string c)
+	    | Int _ -> tin int_of_string
+	    | Real _ -> tin float_of_string
+	    | Text _ -> tin (fun s -> s)
+	    | Date _ -> tin date_of_string
+	    | Bool _ -> tin bool_of_string
+	    | Custom {of_psql_string} -> tin of_psql_string
 
 	    | Null -> None
-	    | IntNull _ -> maybe_null int_null_of_string
-	    | RealNull _ -> maybe_null float_null_of_string
-	    | TextNull _ -> maybe_null string_null_of_string
-	    | DateNull _ -> maybe_null date_null_of_string
-	    | BoolNull _ -> maybe_null bool_null_of_string
-	    | CustomNull {of_psql_string} ->
-		maybe_null (fun s -> Some (of_psql_string s))
+	    | IntNull _ -> mn int_of_string
+	    | RealNull _ -> mn float_of_string
+	    | TextNull _ -> mn (fun s -> s)
+	    | DateNull _ -> mn date_of_string
+	    | BoolNull _ -> mn bool_of_string
+	    | CustomNull {of_psql_string} -> mn of_psql_string
 
 	    | Coalesce (_, x) -> expression_value_of_string x is_null s
-	    | Random -> float_of_string s
-	    | Sqrti _ -> float_of_string s
-	    | Sqrtr _ -> float_of_string s
-	    | Addi _ -> int_of_string s
-	    | Addr _ -> float_of_string s
-	    | Multi _ -> int_of_string s
-	    | Multr _ -> float_of_string s
-	    | Divi _ -> int_of_string s
-	    | Divr _ -> float_of_string s
-	    | Mod _ -> int_of_string s
-	    | Expr _ -> float_of_string s
-	    | Absi _ -> int_of_string s
-	    | Absr _ -> float_of_string s
-	    | Round _ -> float_of_string s
-	    | Ceil _ -> int_of_string s
-	    | Trunc _ -> int_of_string s
+	    | Random -> tin float_of_string
+	    | Sqrti _ -> tin float_of_string
+	    | Sqrtr _ -> tin float_of_string
+	    | Addi _ -> tin int_of_string
+	    | Addr _ -> tin float_of_string
+	    | Multi _ -> tin int_of_string
+	    | Multr _ -> tin float_of_string
+	    | Divi _ -> tin int_of_string
+	    | Divr _ -> tin float_of_string
+	    | Mod _ -> tin int_of_string
+	    | Expr _ -> tin float_of_string
+	    | Absi _ -> tin int_of_string
+	    | Absr _ -> tin float_of_string
+	    | Round _ -> tin float_of_string
+	    | Ceil _ -> tin int_of_string
+	    | Trunc _ -> tin int_of_string
 
 	    | Concat _ -> s
 	    | CharLength _ -> int_of_string s
@@ -792,36 +800,36 @@ module Make (C : Connection) = struct
 
 	    | LocalTimeStamp -> date_of_string s
 
-	    | IsNull _ -> bool_of_string s
-	    | Eq _ -> bool_of_string s
-	    | GT _ -> bool_of_string s
-	    | LT _ -> bool_of_string s
-	    | Not _ -> bool_of_string s
-	    | And _ -> bool_of_string s
-	    | Or _ -> bool_of_string s
-	    | In _ -> bool_of_string s
+	    | IsNull _ -> tin bool_of_string
+	    | Eq _ -> tin bool_of_string
+	    | GT _ -> tin bool_of_string
+	    | LT _ -> tin bool_of_string
+	    | Not _ -> tin bool_of_string
+	    | And _ -> tin bool_of_string
+	    | Or _ -> tin bool_of_string
+	    | In _ -> tin bool_of_string
 
 	    | Case (_, x1, _) -> expression_value_of_string x1 is_null s
 	    | Max (x1, _) -> expression_value_of_string x1 is_null s
 	    | Min (x1, _) -> expression_value_of_string x1 is_null s
 
 
-	    | Exists _ -> bool_of_string s
-	    | AnyEq1 _ -> bool_of_string s
-	    | AnyEq2 _ -> bool_of_string s
-	    | AnyEqN _ -> bool_of_string s
-	    | AnyGt _ -> bool_of_string s
-	    | AnyLt _ -> bool_of_string s
-	    | AllEq1 _ -> bool_of_string s
-	    | AllEq2 _ -> bool_of_string s
-	    | AllEqN _ -> bool_of_string s
-	    | AllGt _ -> bool_of_string s
-	    | AllLt _ -> bool_of_string s
+	    | Exists _ -> tin bool_of_string
+	    | AnyEq1 _ -> tin bool_of_string
+	    | AnyEq2 _ -> tin bool_of_string
+	    | AnyEqN _ -> tin bool_of_string
+	    | AnyGt _ -> tin bool_of_string
+	    | AnyLt _ -> tin bool_of_string
+	    | AllEq1 _ -> tin bool_of_string
+	    | AllEq2 _ -> tin bool_of_string
+	    | AllEqN _ -> tin bool_of_string
+	    | AllGt _ -> tin bool_of_string
+	    | AllLt _ -> tin bool_of_string
 
-	    | Casti x -> int_of_string s
-	    | Castr x -> float_of_string s
-	    | Castt x -> s
-	    | Castd x -> date_of_string s
+	    | Casti x -> tin int_of_string
+	    | Castr x -> tin float_of_string
+	    | Castt x -> tin (fun s -> s)
+	    | Castd x -> tin date_of_string
 
 
 	let expr_value_opt (qres, target) row expr =
@@ -1095,8 +1103,6 @@ module Make (C : Connection) = struct
 
 	let expr_of_col col = Select.Column col
 
-	(* Todo: handle joining on the same table *)
-	(* Todo: handle multiple joins *)
 	let join dir ~on expr =
 	    let columns = Array.append Q1.columns Q2.columns
 	    in let result = Select.q

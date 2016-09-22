@@ -188,12 +188,18 @@ module Make : functor (C : Connection)
 
 	val order_by : order_dir -> string -> t -> t
 
+	(* Cross join is equal to INNER JOIN ON (TRUE) *)
 	type join_direction =
-	    | Left | Inner | Right
+	    | Inner
+	    | Left
+	    | LeftOuter
+	    | Right
+	    | RightOuter
+	    | FullOuter
 
 	val join : string
 	    -> join_direction
-	    -> on:('a column * 'a column)
+	    -> on:bool expr
 	    -> t
 	    -> t
 
@@ -290,12 +296,12 @@ module Make : functor (C : Connection)
 	
 	val join :
 	    Select.join_direction
-	    -> on:('a column * 'a column)
+	    -> on:bool Select.expr
 	    -> bool Select.expr
 	    -> ((T1.t, T2.t) join_result) array
 	
 	val inner_join :
-	    on:('a column * 'a column)
+	    on:bool Select.expr
 	    -> bool Select.expr
 	    -> (T1.t * T2.t) array
     end

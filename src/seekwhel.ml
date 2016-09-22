@@ -31,6 +31,15 @@ module Make (C : Connection) = struct
 			~expect:[Postgresql.Command_ok]
 			st)
 
+    let rec get_index_where ?idx:(idx=0) pred arr =
+	if idx > Array.length arr - 1 then None
+
+	else (
+	    let element = (Array.get arr idx) 
+	    in if pred element then (Some idx)
+	    else get_index_where ~idx:(idx+1) pred arr)
+
+
     type 'a custom_column = {
     	name : string ;
 	of_psql_string : string -> 'a ;
@@ -241,33 +250,22 @@ module Make (C : Connection) = struct
 
     module Select = struct
 
+	(* Cross join is equal to INNER JOIN ON (TRUE) *)
 	type join_direction =
-	    | Left | Inner | Right
+	    | Inner
+	    | Left
+	    | LeftOuter
+	    | Right
+	    | RightOuter
+	    | FullOuter
 
 	let string_of_direction = function
-	    | Left -> "LEFT"
 	    | Inner -> "INNER"
+	    | Left -> "LEFT"
+	    | LeftOuter -> "LEFT OUTER"
 	    | Right -> "RIGHT"
-
-	type join = {
-	    direction : join_direction ;
-	    (* Table name and table abbreviation
-		SQL: <direction> JOIN <name> <abbr>
-		ON <left_column> = <right_column>
-		see string_of_join *)
-	    table_name : string * (string option) ;
-	    left_column : string ;
-	    right_column : string
-	}
-
-	let string_of_join {direction; table_name; left_column; right_column} =
-	    let name = safely_quote_identifier (fst table_name)
-	    and abbr = match (snd table_name) with
-		| Some abbr -> " " ^ safely_quote_identifier abbr
-		| None -> ""
-	    in let name_part = name ^ " " ^ abbr
-	    in string_of_direction direction ^ " JOIN " ^ name_part
-		^ " ON " ^ left_column ^ " = " ^ right_column
+	    | RightOuter -> "RIGHT OUTER"
+	    | FullOuter -> "FULL OUTER"
 
 	type 'a custom_expr = {
 	    value : 'a ;
@@ -381,6 +379,11 @@ module Make (C : Connection) = struct
 	    limit : int option ;
 	    order_by : order_by list ;
 	    offset : int option
+	}
+	and join = {
+	    direction : join_direction ;
+	    table_name : string * (string option) ;
+	    on : bool expr
 	}
 
 	type result = Postgresql.result * target
@@ -613,6 +616,14 @@ module Make (C : Connection) = struct
 	    ^ "\n" ^ string_of_limit limit
 	    ^ "\n" ^ string_of_offset offset
 
+	and string_of_join {direction; table_name; on} =
+	    let name = safely_quote_identifier (fst table_name)
+	    and abbr = match (snd table_name) with
+		| Some abbr -> " " ^ safely_quote_identifier abbr
+		| None -> ""
+	    in let name_part = name ^ " " ^ abbr
+	    in string_of_direction direction ^ " JOIN " ^ name_part
+		^ " ON " ^ within_paren (string_of_expr on)
 
 	let expr_of_value : type a. a -> a column -> a expr
 	    = fun val_ col -> 
@@ -713,15 +724,14 @@ module Make (C : Connection) = struct
 	let abbr_join : ?abbr:(string option)
 	    -> string
 	    -> join_direction
-	    -> on:('a column*'a column)
+	    -> on:bool expr
 	    -> t -> t =
 
 	    fun ?abbr:(abbr=None) table_name direction ~on query ->
 		    { query with join = query.join @ [{
 			direction; 
 			table_name = (table_name, abbr) ;
-			left_column = quoted_string_of_column (fst on) ;
-			right_column = quoted_string_of_column (snd on) 
+			on
 		    }]}
 
 	let join table_name dir ~on sel =
@@ -732,15 +742,6 @@ module Make (C : Connection) = struct
 	let self_join table_name as_abbr dir ~on sel = 
 	    let (`As abbr) = as_abbr
 	    in abbr_join ~abbr:(Some abbr) table_name dir ~on sel
-
-	let rec get_index_where ?idx:(idx=0) pred arr =
-	    if idx > Array.length arr - 1 then None
-
-	    else (
-		let element = (Array.get arr idx) 
-		in if pred element then (Some idx)
-		else get_index_where ~idx:(idx+1) pred arr)
-
 	let index_of_expr target expr =
 	    get_index_where (fun x -> AnyExpr expr = x) target
  
@@ -1096,6 +1097,10 @@ module Make (C : Connection) = struct
 	module Q1 = Queryable(T1)
 	module Q2 = Queryable(T2)
  
+	let _ =
+	    assert (Array.length T1.primary_key > 0) ;
+	    assert (Array.length T2.primary_key > 0) 
+
 	type ('a, 'b) join_result =
 	    | Left of 'a
 	    | Right of 'b
@@ -1103,6 +1108,19 @@ module Make (C : Connection) = struct
 
 	let expr_of_col col = Select.Column col
 
+
+	let get_first_primary_column = fun (module T : Table) -> 
+		assert (Array.length T.primary_key > 0) ;
+		let first_p = Array.get T.primary_key 0
+		in let idx_opt = get_index_where (fun (AnyMapping (c, _, _)) ->
+		    string_of_column c = first_p) T.column_mappings
+		in match idx_opt with
+		    | Some idx -> 
+			let (AnyMapping (c, _, _)) = Array.get T.column_mappings idx
+			in Select.(AnyExpr (Column c))
+		    | None -> seekwhel_fail
+			("primary key must be part of the column mappings; table name: " ^ T.name)
+	
 	let join dir ~on expr =
 	    let columns = Array.append Q1.columns Q2.columns
 	    in let result = Select.q
@@ -1111,26 +1129,17 @@ module Make (C : Connection) = struct
 		|> Select.where expr
 		|> Select.join T2.name dir ~on
 		|> Select.exec
-	    and expr_of_fst (c, _) = expr_of_col c
-	    and expr_of_snd (_, c) = expr_of_col c
-
-	    in let ordered_on = if Array.exists
-		(fun e ->
-		    Select.(
-			e = AnyExpr (expr_of_fst on)))
-		Q1.columns then on (* Correct order *)
-
-		else (snd on, fst on) (* Swap *)
-	    in 
-		Select.get_all (fun cb ->
-		    Select.(match (cb.is_null (expr_of_fst ordered_on),
-				cb.is_null (expr_of_snd ordered_on)) with
-			| (false, false) -> Both (Q1.t_of_callback cb, Q2.t_of_callback cb)
-			| (true, false) -> Right (Q2.t_of_callback cb)
-			| (false, true) -> Left (Q1.t_of_callback cb)
-			| (true, true) -> seekwhel_fail "'on' columns in join query both returned NULL"))
-		    result
-	
+	    and gfpc = get_first_primary_column
+	    in match (gfpc (module T1), gfpc (module T2)) with
+		| (Select.AnyExpr x1, Select.AnyExpr x2) ->
+		    (Select.get_all (fun cb ->
+			match Select.(cb.is_null (x1), cb.is_null x2) with
+			    | (false, false) -> Both (Q1.t_of_callback cb, Q2.t_of_callback cb)
+			    | (true, false) -> Right (Q2.t_of_callback cb)
+			    | (false, true) -> Left (Q1.t_of_callback cb)
+			    | (true, true) ->
+				seekwhel_fail "'on' columns in join query both returned NULL")
+			result)
 
 	let inner_join ~on expr =
 	    let rows = join Select.Inner ~on expr

@@ -377,7 +377,8 @@ module Make (C : Connection) = struct
 	    where : bool expr option ;
 	    join : join list ;
 	    limit : int option ;
-	    order_by : order_by list ;
+	    order_by : (any_expr * order_dir) list ;
+	    group_by : any_expr list ;
 	    offset : int option
 	}
 	and join = {
@@ -400,13 +401,6 @@ module Make (C : Connection) = struct
 	    | DESC -> "DESC"
 	    | ASC -> "ASC"
 
-	let string_of_order_by_list lst =
-	    let column_part = lst
-		|> List.map (fun {dir; column = col} -> safely_quote_column col ^ " " ^ string_of_order_dir dir)
-		|> String.concat ", "
-	    in if column_part = "" then ""
-		else "ORDER BY " ^ column_part
-	   		
 
 	let is_simple_value_constructor (type a) (x: a expr) =
 	    match x with
@@ -604,7 +598,7 @@ module Make (C : Connection) = struct
 		|> to_list
 		|> String.concat ", ")
 
-	and to_string {target; table; where; join; limit; order_by; offset} =
+	and to_string {target; table; where; join; limit; order_by; group_by; offset} =
 	    let target_part = string_of_target target
 	    and sqi = safely_quote_identifier
 	    in let first_part = " SELECT " ^ target_part ^ " FROM " ^ sqi table
@@ -612,9 +606,26 @@ module Make (C : Connection) = struct
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
 	    in first_and_joined 
 	    ^ (where_clause_of_optional_expr where)
-	    ^ "\n" ^ string_of_order_by_list order_by
+	    ^ "\n" ^ string_of_group_by group_by
+	    ^ "\n" ^ string_of_order_by order_by
 	    ^ "\n" ^ string_of_limit limit
 	    ^ "\n" ^ string_of_offset offset
+	
+	and string_of_group_by lst =
+	    match lst with
+		| x::_ as xs -> "GROUP BY " ^ (xs
+		    |> List.map (fun (AnyExpr x) -> x |> string_of_expr |> within_paren)
+		    |> String.concat ", ")
+		| _ -> ""
+
+	and string_of_order_by lst =
+	    match lst with
+		| x::_ as xs ->	"ORDER BY " ^ (xs
+		    |> List.map (fun ((AnyExpr x), dir) ->
+			let x_str = x |> string_of_expr |> within_paren
+			in x_str ^ " " ^ string_of_order_dir dir)
+		    |> String.concat ", ")
+		| _ -> ""
 
 	and string_of_join {direction; table_name; on} =
 	    let name = safely_quote_identifier (fst table_name)
@@ -705,12 +716,15 @@ module Make (C : Connection) = struct
 	    join = [] ;
 	    limit = None ;
 	    order_by = [] ;
+	    group_by = [] ;
 	    offset = None
 	}
 
 	let limit count query = { query with limit = Some count }
 
 	let offset count query = { query with offset = Some count }
+
+	let group_by columns query = { query with group_by = columns }
 
 	let combine_optional_expr expr new_expr =
 	    Some (match expr with
@@ -719,7 +733,7 @@ module Make (C : Connection) = struct
 
 	let where expr sel = {sel with where = (combine_optional_expr sel.where expr)}
 
-	let order_by dir col sel = {sel with order_by = sel.order_by @ [{dir; column = col}]}
+	let order_by x dir sel = {sel with order_by = sel.order_by @ [(AnyExpr x, dir)]}
 
 	let abbr_join : ?abbr:(string option)
 	    -> string

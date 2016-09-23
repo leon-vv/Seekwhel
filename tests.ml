@@ -119,14 +119,14 @@ let quote_identifier_test () =
     ]
     
 let string_of_order_by_list_test () =
-    test1 string_of_order_by_list
-	[
+    test1 string_of_order_by
+	Select.([
 	    ([], "") ;
-	    ([{dir = ASC ; column = "stock"}], "ORDER BY stock ASC") ;
-	    ([{dir = ASC ; column = "stock"} ;
-	    {dir = DESC ; column = "abc.price"}],
-		"ORDER BY stock ASC, abc.price DESC")
-	]
+	    ([(AnyExpr (Column (Columni "stock")), ASC)], "ORDER BY (stock) ASC") ;
+	    ([(AnyExpr (Column (Columni "stock")), ASC);
+	    (AnyExpr (Addi ((Int 10), (Int 30))), Select.DESC)],
+		"ORDER BY (stock) ASC, (10 + 30) DESC")
+	])
 
 let safely_quote_column_test () =
     expect_exception safely_quote_column

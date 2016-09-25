@@ -671,14 +671,12 @@ module Make (C : Connection) = struct
 	    | Some x -> "HAVING " ^ string_of_expr x
 
 	and to_string {distinct; target; table; where; join; limit; order_by; group_by; having; offset} =
-	    let target_part = string_of_target target
-	    and sqi = safely_quote_identifier
-	    in let first_part =
-		" SELECT " ^ string_of_distinct distinct ^ target_part ^ " FROM " ^ sqi table
-	    and join_s = String.concat "\n" (List.map string_of_join join)
-	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
-	    in first_and_joined 
-	    ^ (where_clause_of_optional_expr where)
+	    " SELECT "
+	    ^ string_of_distinct distinct
+	    ^ string_of_target target
+	    ^ " FROM " ^ safely_quote_identifier table
+	   	    ^ (where_clause_of_optional_expr where)
+	    ^ "\n" ^ string_of_join_list join
 	    ^ "\n" ^ string_of_group_by group_by
 	    ^ "\n" ^ string_of_having having
 	    ^ "\n" ^ string_of_order_by order_by
@@ -709,6 +707,9 @@ module Make (C : Connection) = struct
 	    in let name_part = name ^ " " ^ abbr
 	    in string_of_direction direction ^ " JOIN " ^ name_part
 		^ " ON " ^ within_paren (string_of_expr on)
+
+	 and string_of_join_list joins =
+	    String.concat "\n" (List.map string_of_join joins) ^ "\n"
 
 	let expr_of_value : type a. a -> a column -> a expr
 	    = fun val_ col -> 

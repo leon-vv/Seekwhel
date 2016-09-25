@@ -123,6 +123,30 @@ module Make : functor (C : Connection)
 	    (* Date functions *)
 	    | LocalTimeStamp : Calendar.t expr
 
+	    (* Aggregate functions *)
+	    | Avgi : int expr -> float option expr
+	    | Avgr : float expr -> float option expr
+	    | BoolAnd : bool expr -> bool option expr
+	    | BoolOr : bool expr -> bool option expr
+	    | Count : int expr
+	    | CountExpr : 'a expr -> int expr
+
+	    | MaxAggi : int expr -> int option expr
+	    | MaxAggr : float expr -> float option expr
+	    | MaxAggd : Calendar.t expr -> Calendar.t option expr
+	    | MaxAggt : string expr -> string option expr
+
+	    | MinAggi : int expr -> int option expr
+	    | MinAggr : float expr -> float option expr
+	    | MinAggd : Calendar.t expr -> Calendar.t option expr
+	    | MinAggt : string expr -> string option expr
+
+	    | StringAgg : string expr * string -> string option expr
+
+	    | Sumi : int expr -> int option expr
+	    | Sumr : float expr -> float option expr
+
+
 	    (* Boolean *)
 	    | IsNull : ('a option) expr -> bool expr
 	    | Eq : 'a expr * 'a expr -> bool expr

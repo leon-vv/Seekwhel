@@ -326,6 +326,30 @@ module Make (C : Connection) = struct
 	    (* Date functions *)
 	    | LocalTimeStamp : Calendar.t expr
 
+	    (* Aggregate functions *)
+	    | Avgi : int expr -> float option expr
+	    | Avgr : float expr -> float option expr
+	    | BoolAnd : bool expr -> bool option expr
+	    | BoolOr : bool expr -> bool option expr
+	    | Count : int expr
+	    | CountExpr : 'a expr -> int expr
+
+	    | MaxAggi : int expr -> int option expr
+	    | MaxAggr : float expr -> float option expr
+	    | MaxAggd : Calendar.t expr -> Calendar.t option expr
+	    | MaxAggt : string expr -> string option expr
+
+	    | MinAggi : int expr -> int option expr
+	    | MinAggr : float expr -> float option expr
+	    | MinAggd : Calendar.t expr -> Calendar.t option expr
+	    | MinAggt : string expr -> string option expr
+
+	    | StringAgg : string expr * string -> string option expr
+
+	    | Sumi : int expr -> int option expr
+	    | Sumr : float expr -> float option expr
+
+
 	    (* Boolean *)
 	    | IsNull : ('a option) expr -> bool expr
 	    | Eq : 'a expr * 'a expr -> bool expr
@@ -449,8 +473,9 @@ module Make (C : Connection) = struct
 	    fun expr ->
 		let wp = within_paren
 
-		(* not simple, expr around separator,
-		see explanation above *)
+		(* not simple, expr around separator 
+		puts parentheses around the expressions if
+		they're not a simple value constructor *)
 		in let nsim_eas x1 x2 sep = nsim_soe x1 ^ sep ^ nsim_soe x2
 
 		(* not simple, expr within func *)
@@ -518,6 +543,29 @@ module Make (C : Connection) = struct
 			    nsim_soe x ^ op ^ escaped_string r
 
 		    | LocalTimeStamp -> "LOCALTIMESTAMP"
+
+		    | Avgi x -> nsim_ewf x "avg"
+		    | Avgr x -> nsim_ewf x "avg"
+		    | BoolAnd x -> nsim_ewf x "bool_and"
+		    | BoolOr x -> nsim_ewf x "bool_or"
+
+		    | Count -> "count(*)"
+		    | CountExpr x -> nsim_ewf x "count"
+		    | MaxAggi x -> nsim_ewf x "max"
+		    | MaxAggr x -> nsim_ewf x "max"
+		    | MaxAggd x -> nsim_ewf x "max"
+		    | MaxAggt x -> nsim_ewf x "max"
+
+		    | MinAggi x -> nsim_ewf x "min"
+		    | MinAggr x -> nsim_ewf x "min"
+		    | MinAggd x -> nsim_ewf x "min"
+		    | MinAggt x -> nsim_ewf x "min"
+
+		    | StringAgg (x, del) ->
+			"string_agg" ^ wp (nsim_soe x ^ ", " ^ escaped_string del)
+
+		    | Sumi x -> nsim_ewf x "sum"
+		    | Sumr x -> nsim_ewf x "sum"
 
 		    | IsNull x -> nsim_soe x ^ " IS NULL"
 		    | Eq (x1, x2) -> nsim_eas x1 x2 " = "
@@ -814,6 +862,28 @@ module Make (C : Connection) = struct
 	    | Regex _ -> bool_of_string s
 
 	    | LocalTimeStamp -> date_of_string s
+
+	    | Avgi _ -> mn float_of_string
+	    | Avgr _ -> mn float_of_string
+	    | BoolAnd _ -> mn bool_of_string
+	    | BoolOr _ -> mn bool_of_string
+	    | Count -> int_of_string s
+	    | CountExpr x -> int_of_string s
+	    
+	    | MaxAggi _ -> mn int_of_string
+	    | MaxAggr _ -> mn float_of_string
+	    | MaxAggd _ -> mn date_of_string
+	    | MaxAggt _ -> mn (fun s -> s)
+	    
+	    | MinAggi _ -> mn int_of_string
+	    | MinAggr _ -> mn float_of_string
+	    | MinAggd _ -> mn date_of_string
+	    | MinAggt _ -> mn (fun s -> s)
+	    
+	    | StringAgg _ -> mn (fun s -> s)
+	    
+	    | Sumi _ -> mn int_of_string
+	    | Sumr _ -> mn float_of_string
 
 	    | IsNull _ -> tin bool_of_string
 	    | Eq _ -> tin bool_of_string

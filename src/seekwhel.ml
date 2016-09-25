@@ -404,6 +404,7 @@ module Make (C : Connection) = struct
 	}
 	and target = any_expr array
 	and t = {
+	    distinct : any_expr list option ;
 	    target : target ;
 	    table: string ;
 	    where : bool expr option ;
@@ -648,16 +649,27 @@ module Make (C : Connection) = struct
 	and where_clause_of_optional_expr = function
 	    | None -> ""
 	    | Some expr -> " WHERE " ^ string_of_expr expr
+
 	and string_of_target target =
 	    Array.(
 		map (fun (AnyExpr x) -> string_of_expr x) target
 		|> to_list
 		|> String.concat ", ")
+	
+	and string_of_distinct = function
+	    | None -> ""
+	    | Some [] -> "DISTINCT "
+	    | Some xs -> xs
+		|> List.map (fun (AnyExpr x) -> string_of_expr x)
+		|> String.concat ", "
+		|> within_paren
+		|> (fun s -> "DISTINCT ON " ^ s)
 
-	and to_string {target; table; where; join; limit; order_by; group_by; offset} =
+	and to_string {distinct; target; table; where; join; limit; order_by; group_by; offset} =
 	    let target_part = string_of_target target
 	    and sqi = safely_quote_identifier
-	    in let first_part = " SELECT " ^ target_part ^ " FROM " ^ sqi table
+	    in let first_part =
+		" SELECT " ^ string_of_distinct distinct ^ target_part ^ " FROM " ^ sqi table
 	    and join_s = String.concat "\n" (List.map string_of_join join)
 	    in let first_and_joined = first_part ^ "\n" ^ (if join_s = "" then "" else join_s ^ "\n")
 	    in first_and_joined 
@@ -766,6 +778,7 @@ module Make (C : Connection) = struct
 	    | _ -> None (* Can't create an expression from an empty list *)
 
 	let q ~table target = {
+	    distinct = None ;
 	    target ;
 	    table ;
 	    where = None ;
@@ -775,6 +788,8 @@ module Make (C : Connection) = struct
 	    group_by = [] ;
 	    offset = None
 	}
+
+	let distinct d query = { query with distinct = Some d }
 
 	let limit count query = { query with limit = Some count }
 

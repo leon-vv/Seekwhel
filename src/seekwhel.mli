@@ -214,10 +214,10 @@ module Make : functor (C : Connection)
 	    | ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
 
 
+	val distinct : any_expr list -> t -> t
 	val where : bool expr-> t -> t
 	val limit : int -> t -> t
 	val offset : int -> t -> t
-
 	val order_by : 'a expr -> order_dir -> t -> t
 
 	(* Cross join is equal to INNER JOIN ON (TRUE) *)

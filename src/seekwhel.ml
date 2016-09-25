@@ -334,15 +334,15 @@ module Make (C : Connection) = struct
 	    | Count : int expr
 	    | CountExpr : 'a expr -> int expr
 
-	    | MaxAggi : int expr -> int option expr
-	    | MaxAggr : float expr -> float option expr
-	    | MaxAggd : Calendar.t expr -> Calendar.t option expr
-	    | MaxAggt : string expr -> string option expr
+	    | Maxi : int expr -> int option expr
+	    | Maxr : float expr -> float option expr
+	    | Maxd : Calendar.t expr -> Calendar.t option expr
+	    | Maxt : string expr -> string option expr
 
-	    | MinAggi : int expr -> int option expr
-	    | MinAggr : float expr -> float option expr
-	    | MinAggd : Calendar.t expr -> Calendar.t option expr
-	    | MinAggt : string expr -> string option expr
+	    | Mini : int expr -> int option expr
+	    | Minr : float expr -> float option expr
+	    | Mind : Calendar.t expr -> Calendar.t option expr
+	    | Mint : string expr -> string option expr
 
 	    | StringAgg : string expr * string -> string option expr
 
@@ -362,8 +362,16 @@ module Make (C : Connection) = struct
 
 	    (* Conditionals *)
 	    | Case : bool expr * 'a expr * 'a expr -> 'a expr
-	    | Max : 'a expr * 'a expr -> 'a expr
-	    | Min : 'a expr * 'a expr -> 'a expr
+
+	    | Greatesti : int expr list -> int expr
+	    | Greatestr : float expr list -> float expr
+	    | Greatestd : Calendar.t expr list -> Calendar.t expr
+	    | Greatestt : string expr list -> string expr
+
+	    | Leasti : int expr list -> int expr
+	    | Leastr : float expr list -> float expr
+	    | Leastd : Calendar.t expr list -> Calendar.t expr
+	    | Leastt : string expr list -> string expr
 
 	    (* Subqueries *)
 	    | Exists : t -> bool expr
@@ -487,6 +495,12 @@ module Make (C : Connection) = struct
 			|> String.concat ", "
 			|> wp
 
+		and concat_expr xs =
+		    xs
+			|> List.map nsim_soe
+			|> String.concat ", "
+			|> wp
+
 		(* select within parentheses *)
 		and select_wp s = s |> to_string |> wp
 
@@ -551,15 +565,15 @@ module Make (C : Connection) = struct
 
 		    | Count -> "count(*)"
 		    | CountExpr x -> nsim_ewf x "count"
-		    | MaxAggi x -> nsim_ewf x "max"
-		    | MaxAggr x -> nsim_ewf x "max"
-		    | MaxAggd x -> nsim_ewf x "max"
-		    | MaxAggt x -> nsim_ewf x "max"
+		    | Maxi x -> nsim_ewf x "max"
+		    | Maxr x -> nsim_ewf x "max"
+		    | Maxd x -> nsim_ewf x "max"
+		    | Maxt x -> nsim_ewf x "max"
 
-		    | MinAggi x -> nsim_ewf x "min"
-		    | MinAggr x -> nsim_ewf x "min"
-		    | MinAggd x -> nsim_ewf x "min"
-		    | MinAggt x -> nsim_ewf x "min"
+		    | Mini x -> nsim_ewf x "min"
+		    | Minr x -> nsim_ewf x "min"
+		    | Mind x -> nsim_ewf x "min"
+		    | Mint x -> nsim_ewf x "min"
 
 		    | StringAgg (x, del) ->
 			"string_agg" ^ wp (nsim_soe x ^ ", " ^ escaped_string del)
@@ -593,22 +607,16 @@ module Make (C : Connection) = struct
 		    | Case (cond, then_, else_) as c ->
 			string_of_case c
 
-		    | Max (left1, right1) ->
-			let rec comma_sep_expressions = function
-			    | Max (left2, right2) ->
-				comma_sep_expressions left2
-				    ^ ", " ^ comma_sep_expressions right2
-			    | x -> nsim_soe x
-			in "GREATEST(" ^ comma_sep_expressions left1 ^
-			    ", " ^ comma_sep_expressions right1 ^ ")"
-		    | Min (left1, right1) ->
-			let rec comma_sep_expressions = function
-			    | Min (left2, right2) ->
-				comma_sep_expressions left2
-				    ^ ", " ^ comma_sep_expressions right2
-			    | x -> nsim_soe x
-			in "LEAST(" ^ comma_sep_expressions left1 ^
-			    ", " ^ comma_sep_expressions right1 ^ ")"
+		    | Greatesti xs -> "GREATEST" ^ concat_expr xs
+		    | Greatestr xs -> "GREATEST" ^ concat_expr xs
+		    | Greatestd xs -> "GREATEST" ^ concat_expr xs
+		    | Greatestt xs -> "GREATEST" ^ concat_expr xs
+
+		    | Leasti xs -> "LEAST" ^ concat_expr xs
+		    | Leastr xs -> "LEAST" ^ concat_expr xs
+		    | Leastd xs -> "LEAST" ^ concat_expr xs
+		    | Leastt xs -> "LEAST" ^ concat_expr xs
+
 
 		    | Exists sel -> to_string sel
 
@@ -870,15 +878,15 @@ module Make (C : Connection) = struct
 	    | Count -> int_of_string s
 	    | CountExpr x -> int_of_string s
 	    
-	    | MaxAggi _ -> mn int_of_string
-	    | MaxAggr _ -> mn float_of_string
-	    | MaxAggd _ -> mn date_of_string
-	    | MaxAggt _ -> mn (fun s -> s)
+	    | Maxi _ -> mn int_of_string
+	    | Maxr _ -> mn float_of_string
+	    | Maxd _ -> mn date_of_string
+	    | Maxt _ -> mn (fun s -> s)
 	    
-	    | MinAggi _ -> mn int_of_string
-	    | MinAggr _ -> mn float_of_string
-	    | MinAggd _ -> mn date_of_string
-	    | MinAggt _ -> mn (fun s -> s)
+	    | Mini _ -> mn int_of_string
+	    | Minr _ -> mn float_of_string
+	    | Mind _ -> mn date_of_string
+	    | Mint _ -> mn (fun s -> s)
 	    
 	    | StringAgg _ -> mn (fun s -> s)
 	    
@@ -895,9 +903,15 @@ module Make (C : Connection) = struct
 	    | In _ -> tin bool_of_string
 
 	    | Case (_, x1, _) -> expression_value_of_string x1 is_null s
-	    | Max (x1, _) -> expression_value_of_string x1 is_null s
-	    | Min (x1, _) -> expression_value_of_string x1 is_null s
+	    | Greatesti _ -> tin int_of_string
+	    | Greatestr _ -> tin float_of_string
+	    | Greatestd _ -> tin date_of_string
+	    | Greatestt _ -> tin (fun s -> s)
 
+	    | Leasti _ -> tin int_of_string
+	    | Leastr _ -> tin float_of_string
+	    | Leastd _ -> tin date_of_string
+	    | Leastt _ -> tin (fun s -> s)
 
 	    | Exists _ -> tin bool_of_string
 	    | AnyEq1 _ -> tin bool_of_string

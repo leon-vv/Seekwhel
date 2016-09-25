@@ -131,15 +131,15 @@ module Make : functor (C : Connection)
 	    | Count : int expr
 	    | CountExpr : 'a expr -> int expr
 
-	    | MaxAggi : int expr -> int option expr
-	    | MaxAggr : float expr -> float option expr
-	    | MaxAggd : Calendar.t expr -> Calendar.t option expr
-	    | MaxAggt : string expr -> string option expr
+	    | Maxi : int expr -> int option expr
+	    | Maxr : float expr -> float option expr
+	    | Maxd : Calendar.t expr -> Calendar.t option expr
+	    | Maxt : string expr -> string option expr
 
-	    | MinAggi : int expr -> int option expr
-	    | MinAggr : float expr -> float option expr
-	    | MinAggd : Calendar.t expr -> Calendar.t option expr
-	    | MinAggt : string expr -> string option expr
+	    | Mini : int expr -> int option expr
+	    | Minr : float expr -> float option expr
+	    | Mind : Calendar.t expr -> Calendar.t option expr
+	    | Mint : string expr -> string option expr
 
 	    | StringAgg : string expr * string -> string option expr
 
@@ -159,8 +159,16 @@ module Make : functor (C : Connection)
 
 	    (* Conditionals *)
 	    | Case : bool expr * 'a expr * 'a expr -> 'a expr
-	    | Max : 'a expr * 'a expr -> 'a expr
-	    | Min : 'a expr * 'a expr -> 'a expr
+
+	    | Greatesti : int expr list -> int expr
+	    | Greatestr : float expr list -> float expr
+	    | Greatestd : Calendar.t expr list -> Calendar.t expr
+	    | Greatestt : string expr list -> string expr
+
+	    | Leasti : int expr list -> int expr
+	    | Leastr : float expr list -> float expr
+	    | Leastd : Calendar.t expr list -> Calendar.t expr
+	    | Leastt : string expr list -> string expr
 
 	    (* Subqueries *)
 	    | Exists : t -> bool expr

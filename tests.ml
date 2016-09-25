@@ -186,10 +186,10 @@ module String_of_expr_test = struct
     let case_double = Case (eq, f, case_single)
 
 
-    let max_single = Max(f, sqrtf)
-    let max_double = Max(Max(i, addi), Max(i, i))
-    let min_single = Min(f, sqrtf)
-    let min_double = Min(Min(i, addi), Min(i, i))
+    let greatest_double = Greatestr [f; sqrtf]
+    let greatest_triple = Greatesti [i; addi; i]
+    let least_double = Leastr [f; sqrtf]
+    let least_triple = Leasti [i; addi; i]
 
     (* Some complicated expressions *)
     let root_coalesce = Sqrti (Coalesce (int_null, i))
@@ -225,10 +225,10 @@ module String_of_expr_test = struct
 	or_ >>|| "(100 IS NULL) OR (NOT (price = 10.))" ;
 	case_single >>|| "CASE WHEN ('def' < \"name\") THEN 20.3 ELSE (|/ 20.3) END" ;
 	case_double >>|| "CASE WHEN (price = 10.) THEN 20.3 WHEN ('def' < \"name\") THEN 20.3 ELSE (|/ 20.3) END" ;
-	max_single >>|| "GREATEST(20.3, (|/ 20.3))" ;
-	max_double >>|| "GREATEST(10, (10 + 10), 10, 10)";
-	min_single >>|| "LEAST(20.3, (|/ 20.3))" ;
-	min_double >>|| "LEAST(10, (10 + 10), 10, 10)";
+	greatest_double >>|| "GREATEST(20.3, (|/ 20.3))" ;
+	greatest_triple >>|| "GREATEST(10, (10 + 10), 10)";
+	least_double >>|| "LEAST(20.3, (|/ 20.3))" ;
+	least_triple >>|| "LEAST(10, (10 + 10), 10)";
 
 	root_coalesce >>|| "|/ (COALESCE(100, 10))" ;
 	logical >>||

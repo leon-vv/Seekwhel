@@ -199,7 +199,7 @@ module Make : functor (C : Connection)
 	and target = any_expr array
 	
 
-	val string_of_expr : 'a expr -> string
+	val string_of_expr : ?indent:int -> 'a expr -> string
 
 	val expr_of_value : 'a -> 'a column -> 'a expr
 	    

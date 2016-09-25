@@ -349,7 +349,6 @@ module Make (C : Connection) = struct
 	    | Sumi : int expr -> int option expr
 	    | Sumr : float expr -> float option expr
 
-
 	    (* Boolean *)
 	    | IsNull : ('a option) expr -> bool expr
 	    | Eq : 'a expr * 'a expr -> bool expr
@@ -461,45 +460,49 @@ module Make (C : Connection) = struct
 
 	let within_paren s = "(" ^ s ^ ")"
 
-	let rec nsim_soe : type a. a expr -> string = fun x ->
-	    if is_simple_value_constructor x then string_of_expr x
-	    else x |> string_of_expr |> within_paren
+	let rec whitespace_of_indent = function
+	    | 0 -> ""
+	    | n -> "\t" ^ whitespace_of_indent (n-1)
 
-	and string_of_case : type a. a expr -> string = fun c ->
+	let rec nsim_soe : type a. a expr -> indent:int -> string = fun x ~indent ->
+	    if is_simple_value_constructor x then string_of_expr ~indent x
+	    else x |> string_of_expr ~indent |> within_paren
+
+	and string_of_case : type a. a expr -> indent:int -> string = fun c ~indent ->
 	    let rec when_of_case = function
 		| Case (cond1, then1, else1) ->
-		    (let w = "WHEN " ^ nsim_soe cond1 ^ " THEN " ^ nsim_soe then1 ^ " "
+		    (let w = "WHEN " ^ nsim_soe ~indent cond1 ^ " THEN " ^ nsim_soe ~indent then1 ^ " "
 		    in match else1 with
 			| Case _ ->
 			    w ^ when_of_case else1
 			| _ ->
-			    w ^ "ELSE " ^ nsim_soe else1)
+			    w ^ "ELSE " ^ nsim_soe ~indent else1)
 		| _ -> seekwhel_fail "string_of_case called with a non-Case expression"
 	    in 
 		"CASE " ^ when_of_case c ^ " END"
 
 			
-	and string_of_expr : type a. a expr -> string =
-	    fun expr ->
+	and string_of_expr : type a. ?indent:int -> a expr ->  string =
+	    fun ?indent:(indent=0) expr ->
 		let wp = within_paren
 
 		(* not simple, expr around separator 
 		puts parentheses around the expressions if
 		they're not a simple value constructor *)
-		in let nsim_eas x1 x2 sep = nsim_soe x1 ^ sep ^ nsim_soe x2
+		in let nsim_eas x1 x2 sep = nsim_soe ~indent x1 ^ sep ^ nsim_soe ~indent x2
 
 		(* not simple, expr within func *)
-		and nsim_ewf x f = f ^ wp (nsim_soe x)
+		and nsim_ewf x f = f ^ wp (nsim_soe ~indent x)
 
 		and concat_any_expr xs = 
 		    xs
-			|> List.map (fun (AnyExpr x) -> nsim_soe x)
+			|> List.map (fun (AnyExpr x) -> nsim_soe ~indent x)
 			|> String.concat ", "
 			|> wp
 
 		and concat_expr xs =
 		    xs
-			|> List.map nsim_soe
+			|> List.map (nsim_soe ~indent)
 			|> String.concat ", "
 			|> wp
 
@@ -509,7 +512,7 @@ module Make (C : Connection) = struct
 		(* Separator between expression and select
 		subquery *)
 		in let sep_between_x_sel x sep sel =
-		    nsim_soe x ^ sep ^ select_wp sel
+		    nsim_soe x ~indent ^ sep ^ select_wp sel
 
 		and escaped_string s = "'" ^ (C.connection#escape_string s) ^ "'"
 
@@ -531,10 +534,10 @@ module Make (C : Connection) = struct
 		    | BoolNull b -> string_of_bool b
 		    | CustomNull {value; to_psql_string} -> to_psql_string value
 
-		    | Coalesce (x1, x2) -> "COALESCE(" ^ nsim_soe x1 ^ ", " ^ nsim_soe x2 ^ ")"
+		    | Coalesce (x1, x2) -> "COALESCE(" ^ nsim_soe ~indent x1 ^ ", " ^ nsim_soe ~indent x2 ^ ")"
 		    | Random -> "RANDOM()"
-		    | Sqrti x -> "|/ " ^ nsim_soe x
-		    | Sqrtr x -> "|/ " ^ nsim_soe x
+		    | Sqrti x -> "|/ " ^ nsim_soe ~indent x
+		    | Sqrtr x -> "|/ " ^ nsim_soe ~indent x
 		    | Addi (x1, x2) -> nsim_eas x1 x2 " + "
 		    | Addr (x1, x2) -> nsim_eas x1 x2 " + "
 		    | Multi (x1, x2) -> nsim_eas x1 x2 " * "
@@ -543,20 +546,20 @@ module Make (C : Connection) = struct
 		    | Divr (x1, x2) -> nsim_eas x1 x2 " / "
 		    | Mod (x1, x2) -> nsim_eas x1 x2 " % "
 		    | Expr (x1, x2) -> nsim_eas x1 x2 " ^ "
-		    | Absi x -> "@ " ^ nsim_soe x
-		    | Absr x -> "@ " ^ nsim_soe x
-		    | Round (x, i) -> "ROUND(" ^ nsim_soe x ^ ", " ^ string_of_int i ^ ")"
-		    | Ceil x -> "CEIL(" ^ nsim_soe x ^ ")"
-		    | Trunc x -> "TRUNC(" ^ nsim_soe x ^ ")"
+		    | Absi x -> "@ " ^ nsim_soe ~indent x
+		    | Absr x -> "@ " ^ nsim_soe ~indent x
+		    | Round (x, i) -> "ROUND(" ^ nsim_soe ~indent x ^ ", " ^ string_of_int i ^ ")"
+		    | Ceil x -> "CEIL(" ^ nsim_soe ~indent x ^ ")"
+		    | Trunc x -> "TRUNC(" ^ nsim_soe ~indent x ^ ")"
 
-		    | Concat (s1, s2) -> nsim_soe s1 ^ " || " ^ nsim_soe s2
+		    | Concat (s1, s2) -> nsim_soe ~indent s1 ^ " || " ^ nsim_soe ~indent s2
 		    | CharLength x -> nsim_ewf x "CHAR_LENGTH"
 		    | Lower x -> nsim_ewf x "LOWER"
 		    | Upper x -> nsim_ewf x "UPPER"
 		    | Regex (x, r, sensitive) ->
 			let op = if sensitive then " ~ " else " ~* "
 			in
-			    nsim_soe x ^ op ^ escaped_string r
+			    nsim_soe ~indent x ^ op ^ escaped_string r
 
 		    | LocalTimeStamp -> "LOCALTIMESTAMP"
 
@@ -578,36 +581,48 @@ module Make (C : Connection) = struct
 		    | Mint x -> nsim_ewf x "MIN"
 
 		    | StringAgg (x, del) ->
-			"STRING_AGG" ^ wp (nsim_soe x ^ ", " ^ escaped_string del)
+			"STRING_AGG" ^ wp (nsim_soe ~indent x ^ ", " ^ escaped_string del)
 
 		    | Sumi x -> nsim_ewf x "SUM"
 		    | Sumr x -> nsim_ewf x "SUM"
 
-		    | IsNull x -> nsim_soe x ^ " IS NULL"
+		    | IsNull x -> nsim_soe ~indent x ^ " IS NULL"
 		    | Eq (x1, x2) -> nsim_eas x1 x2 " = "
 		    | GT (x1, x2) -> nsim_eas x1 x2 " > "
 		    | LT (x1, x2) -> nsim_eas x1 x2 " < "
-		    | Not x -> "NOT " ^ nsim_soe x
+		    | Not x -> "NOT " ^ nsim_soe ~indent x
 
 		    (* Some special checks to reduce parentheses
 		    in ouput. This makes the query easier to read for humans,
-		    which are the target specicies for this library. *)
+		    which are the target species for this library. *)
 		    | And (x1, x2) ->
-			let left = if is_and x1 then string_of_expr x1 else nsim_soe x1
-			and right = if is_and x2 then string_of_expr x2 else nsim_soe x2
+			let left = if is_and x1
+			    then string_of_expr ~indent:(indent+1) x1
+			    else nsim_soe ~indent x1
+
+			and right = if is_and x2
+			    then string_of_expr x2 ~indent:(indent+1)
+			    else nsim_soe ~indent x2
+
 			in left ^ " AND " ^ right
 
 		    | Or (x1, x2) ->
-			let left = if is_or x1 then string_of_expr x1 else nsim_soe x1
-			and right = if is_or x2 then string_of_expr x2 else nsim_soe x2
+			let left = if is_or x1 
+			    then string_of_expr ~indent:(indent+1) x1
+			    else nsim_soe ~indent x1
+
+			and right = if is_or x2
+			    then string_of_expr ~indent:(indent+1) x2
+			    else nsim_soe ~indent x2
+
 			in left ^ " OR " ^ right
 
 		    | In (x1, xs) ->
-			nsim_soe x1 ^ " IN " ^ 
-			wp (String.concat ", " (List.map nsim_soe xs))
+			nsim_soe ~indent x1 ^ " IN " ^ 
+			wp (String.concat ", " (List.map (nsim_soe ~indent) xs))
 
 		    | Case (cond, then_, else_) as c ->
-			string_of_case c
+			string_of_case ~indent c
 
 		    | Greatesti xs -> "GREATEST" ^ concat_expr xs
 		    | Greatestr xs -> "GREATEST" ^ concat_expr xs
@@ -625,7 +640,7 @@ module Make (C : Connection) = struct
 		    | AnyEq1 (x, select) ->
 			sep_between_x_sel x " = ANY " select
 		    | AnyEq2 (x1, x2, select) ->
-			wp (nsim_soe x1 ^ "," ^ nsim_soe x2) ^ " = ANY " ^ select_wp select
+			wp (nsim_soe ~indent x1 ^ "," ^ nsim_soe ~indent x2) ^ " = ANY " ^ select_wp select
 		    | AnyEqN (lst, select) ->
 			concat_any_expr lst ^ " = ANY " ^ select_wp select
 
@@ -635,81 +650,85 @@ module Make (C : Connection) = struct
 		    | AllEq1 (x, select) ->
 			sep_between_x_sel x " = ALL" select
 		    | AllEq2 (x1, x2, select) ->
-			wp (nsim_soe x1 ^ "," ^ nsim_soe x2) ^ " = ALL " ^ select_wp select
+			wp (nsim_soe ~indent x1 ^ "," ^ nsim_soe ~indent x2) ^ " = ALL " ^ select_wp select
 		    | AllEqN (lst, select) ->
 			concat_any_expr lst ^ " = ALL " ^ select_wp select
 
 		    | AllGt (x, select) -> sep_between_x_sel x " > ALL " select
 		    | AllLt (x, select) -> sep_between_x_sel x " < ALL " select
 		    
-		    | Casti expr -> "CAST(" ^ nsim_soe expr ^ " AS INT)"
-		    | Castr expr -> "CAST(" ^ nsim_soe expr ^ " AS DOUBLE PRECISION)"
-		    | Castt expr -> "CAST(" ^ nsim_soe expr ^ " AS TEXT)"
-		    | Castd expr -> "CAST(" ^ nsim_soe expr ^ " AS TIMESTAMP)"
+		    | Casti expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS INT)"
+		    | Castr expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS DOUBLE PRECISION)"
+		    | Castt expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS TEXT)"
+		    | Castd expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS TIMESTAMP)"
 
-	and where_clause_of_optional_expr = function
+	and where_clause_of_optional_expr ~indent = function
 	    | None -> ""
-	    | Some expr -> " WHERE " ^ string_of_expr expr
+	    | Some expr -> " WHERE " ^ string_of_expr ~indent expr
 
-	and string_of_target target =
+	and string_of_target ~indent target =
 	    Array.(
-		map (fun (AnyExpr x) -> string_of_expr x) target
+		map (fun (AnyExpr x) -> string_of_expr ~indent x) target
 		|> to_list
-		|> String.concat ", ")
+		|> String.concat "\n, ")
 	
-	and string_of_distinct = function
+	and string_of_distinct ~indent = function
 	    | None -> ""
 	    | Some [] -> "DISTINCT "
 	    | Some xs -> xs
-		|> List.map (fun (AnyExpr x) -> string_of_expr x)
+		|> List.map (fun (AnyExpr x) -> string_of_expr ~indent x)
 		|> String.concat ", "
 		|> within_paren
 		|> (fun s -> "DISTINCT ON " ^ s)
 	
-	and string_of_having = function
+	and string_of_having ~indent = function
 	    | None -> ""
-	    | Some x -> "HAVING " ^ string_of_expr x
+	    | Some x -> "HAVING " ^ string_of_expr ~indent x
 
 	and to_string {distinct; target; table; where; join; limit; order_by; group_by; having; offset} =
-	    " SELECT "
-	    ^ string_of_distinct distinct
-	    ^ string_of_target target
-	    ^ " FROM " ^ safely_quote_identifier table
-	   	    ^ (where_clause_of_optional_expr where)
-	    ^ "\n" ^ string_of_join_list join
-	    ^ "\n" ^ string_of_group_by group_by
-	    ^ "\n" ^ string_of_having having
-	    ^ "\n" ^ string_of_order_by order_by
-	    ^ "\n" ^ string_of_limit limit
-	    ^ "\n" ^ string_of_offset offset
+	    let aux indent =
+		" SELECT "
+		^ string_of_distinct ~indent distinct
+		^ string_of_target ~indent target
+		^ " FROM " ^ safely_quote_identifier table
+			^ (where_clause_of_optional_expr ~indent where)
+		^ "\n" ^ string_of_join_list ~indent join
+		^ "\n" ^ string_of_group_by ~indent group_by
+		^ "\n" ^ string_of_having ~indent having
+		^ "\n" ^ string_of_order_by ~indent order_by
+		^ "\n" ^ string_of_limit limit
+		^ "\n" ^ string_of_offset offset
+	    in aux 0
 	
-	and string_of_group_by lst =
+	and string_of_group_by ~indent lst =
 	    match lst with
 		| x::_ as xs -> "GROUP BY " ^ (xs
-		    |> List.map (fun (AnyExpr x) -> x |> string_of_expr |> within_paren)
+		    |> List.map (fun (AnyExpr x) ->
+			x |> string_of_expr ~indent |> within_paren)
+
 		    |> String.concat ", ")
 		| _ -> ""
 
-	and string_of_order_by lst =
+	and string_of_order_by ~indent lst =
 	    match lst with
 		| x::_ as xs ->	"ORDER BY " ^ (xs
 		    |> List.map (fun ((AnyExpr x), dir) ->
-			let x_str = x |> string_of_expr |> within_paren
+			let x_str = x |> string_of_expr ~indent |> within_paren
 			in x_str ^ " " ^ string_of_order_dir dir)
 		    |> String.concat ", ")
 		| _ -> ""
 
-	and string_of_join {direction; table_name; on} =
+	and string_of_join ~indent {direction; table_name; on} =
 	    let name = safely_quote_identifier (fst table_name)
 	    and abbr = match (snd table_name) with
 		| Some abbr -> " " ^ safely_quote_identifier abbr
 		| None -> ""
 	    in let name_part = name ^ " " ^ abbr
 	    in string_of_direction direction ^ " JOIN " ^ name_part
-		^ " ON " ^ within_paren (string_of_expr on)
+		^ " ON " ^ within_paren (string_of_expr ~indent on)
 
-	 and string_of_join_list joins =
-	    String.concat "\n" (List.map string_of_join joins) ^ "\n"
+	 and string_of_join_list ~indent joins =
+	    String.concat "\n" (List.map (string_of_join ~indent) joins) ^ "\n"
 
 	let expr_of_value : type a. a -> a column -> a expr
 	    = fun val_ col -> 
@@ -745,34 +764,34 @@ module Make (C : Connection) = struct
 	type column_eq_default =
 	    | ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
 
-	let string_of_column_value (type a) (c:a column) (v:a): string =
+	let string_of_column_value (type a) (c:a column) (v:a) ~indent : string =
 	    let maybe_null f v = match v with
 		| None -> "NULL"
 		| Some v -> f v
 	    and soe = string_of_expr
 	    in match c with
-		| Columni _ -> soe (Int v)
-		| Columnr _ -> soe (Real v)
-		| Columnt _ -> soe (Text v)
-		| Columnd _ -> soe (Date v)
-		| Columnb _ -> soe (Bool v)
+		| Columni _ -> soe ~indent (Int v)
+		| Columnr _ -> soe ~indent (Real v)
+		| Columnt _ -> soe ~indent (Text v)
+		| Columnd _ -> soe ~indent (Date v)
+		| Columnb _ -> soe ~indent (Bool v)
 		| Column_custom {to_psql_string} -> to_psql_string v
 
-		| ColumniNull _ -> maybe_null (fun i -> soe (IntNull i)) v
-		| ColumnrNull _ -> maybe_null (fun f -> soe (RealNull f)) v
-		| ColumntNull _ -> maybe_null (fun s -> soe (TextNull s)) v
-		| ColumndNull _ -> maybe_null (fun d -> soe (DateNull d)) v
-		| ColumnbNull _ -> maybe_null (fun b -> soe (BoolNull b)) v
+		| ColumniNull _ -> maybe_null (fun i -> soe ~indent (IntNull i)) v
+		| ColumnrNull _ -> maybe_null (fun f -> soe ~indent (RealNull f)) v
+		| ColumntNull _ -> maybe_null (fun s -> soe ~indent (TextNull s)) v
+		| ColumndNull _ -> maybe_null (fun d -> soe ~indent (DateNull d)) v
+		| ColumnbNull _ -> maybe_null (fun b -> soe ~indent (BoolNull b)) v
 		| ColumnCustomNull {to_psql_string} -> maybe_null (fun c ->  to_psql_string c) v
 
-	let string_of_column_and_opt_expr (ColumnEqDefault (col, opt_expr)) = 
+	let string_of_column_and_opt_expr ~indent (ColumnEqDefault (col, opt_expr)) = 
 	    (string_of_column col, match opt_expr with
-		| Expr x -> string_of_expr x
+		| Expr x -> string_of_expr ~indent x
 		| Default -> "DEFAULT")
 	    
-	let stringify_column_and_opt_expr_array arr =
+	let stringify_column_and_opt_expr_array ~indent arr =
 	    List.map
-		string_of_column_and_opt_expr
+		(string_of_column_and_opt_expr ~indent)
 		(Array.to_list arr) 
 	
 	let expr_of_expr_list = function
@@ -1053,13 +1072,15 @@ module Make (C : Connection) = struct
 	let q ~table target = {target; table}
 
 	let to_string {target; table} =
-	    let (columns, values) =
-		List.split (Select.stringify_column_and_opt_expr_array target)
-	    in let column_part = String.concat "," columns
-	    and values_part = String.concat "," values
-	    in "INSERT INTO " ^ safely_quote_identifier table ^
-		" ( " ^ column_part ^ " ) " ^
-		" VALUES ( " ^ values_part ^ " ) "
+	    let aux = fun indent ->
+		let (columns, values) =
+		    List.split (Select.stringify_column_and_opt_expr_array ~indent target)
+		in let column_part = String.concat "," columns
+		and values_part = String.concat "," values
+		in "INSERT INTO " ^ safely_quote_identifier table ^
+		    " ( " ^ column_part ^ " ) " ^
+		    " VALUES ( " ^ values_part ^ " ) "
+	    in aux 0
 	
 	let exec ins = exec_ignore (to_string ins)
     end
@@ -1079,11 +1100,13 @@ module Make (C : Connection) = struct
 	    {query with where = (Select.combine_optional_expr query.where expr)}
 
 	let to_string {target; table; where} =
-	    let target_s = Select.stringify_column_and_opt_expr_array target
-	    in let equals = List.map (fun (col, v) -> col ^ " = " ^ v) target_s
-	    in " UPDATE " ^ (safely_quote_identifier table) ^ " SET "
-	    ^ String.concat "," equals
-	    ^ Select.where_clause_of_optional_expr where
+	    let aux indent = 
+		let target_s = Select.stringify_column_and_opt_expr_array ~indent target
+		in let equals = List.map (fun (col, v) -> col ^ " = " ^ v) target_s
+		in " UPDATE " ^ (safely_quote_identifier table) ^ " SET "
+		^ String.concat "," equals
+		^ Select.where_clause_of_optional_expr ~indent where
+	    in aux 0
 
 	let exec upd = exec_ignore (to_string upd)
     end
@@ -1100,10 +1123,12 @@ module Make (C : Connection) = struct
 	    {query with where = (Select.combine_optional_expr query.where expr)}
 	
 	let to_string {table; where} =
-	    " DELETE " ^ " FROM " ^ safely_quote_identifier table
-	    ^ Select.where_clause_of_optional_expr where
+	    let aux indent =
+		" DELETE " ^ " FROM " ^ safely_quote_identifier table
+		^ Select.where_clause_of_optional_expr ~indent where
+	    in aux 0
 
-	let exec del = exec_ignore (to_string del)
+	let exec del = exec_ignore (to_string  del)
     end
 
 

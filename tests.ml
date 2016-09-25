@@ -119,7 +119,7 @@ let quote_identifier_test () =
     ]
     
 let string_of_order_by_list_test () =
-    test1 string_of_order_by
+    test1 (string_of_order_by ~indent:0)
 	Select.([
 	    ([], "") ;
 	    ([(AnyExpr (Column (Columni "stock")), ASC)], "ORDER BY (stock) ASC") ;

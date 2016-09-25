@@ -543,14 +543,14 @@ module Make (C : Connection) = struct
 		    | Expr (x1, x2) -> nsim_eas x1 x2 " ^ "
 		    | Absi x -> "@ " ^ nsim_soe x
 		    | Absr x -> "@ " ^ nsim_soe x
-		    | Round (x, i) -> "round(" ^ nsim_soe x ^ ", " ^ string_of_int i ^ ")"
-		    | Ceil x -> "ceil(" ^ nsim_soe x ^ ")"
-		    | Trunc x -> "trunc(" ^ nsim_soe x ^ ")"
+		    | Round (x, i) -> "ROUND(" ^ nsim_soe x ^ ", " ^ string_of_int i ^ ")"
+		    | Ceil x -> "CEIL(" ^ nsim_soe x ^ ")"
+		    | Trunc x -> "TRUNC(" ^ nsim_soe x ^ ")"
 
 		    | Concat (s1, s2) -> nsim_soe s1 ^ " || " ^ nsim_soe s2
-		    | CharLength x -> nsim_ewf x "char_length"
-		    | Lower x -> nsim_ewf x "lower"
-		    | Upper x -> nsim_ewf x "upper"
+		    | CharLength x -> nsim_ewf x "CHAR_LENGTH"
+		    | Lower x -> nsim_ewf x "LOWER"
+		    | Upper x -> nsim_ewf x "UPPER"
 		    | Regex (x, r, sensitive) ->
 			let op = if sensitive then " ~ " else " ~* "
 			in
@@ -558,28 +558,28 @@ module Make (C : Connection) = struct
 
 		    | LocalTimeStamp -> "LOCALTIMESTAMP"
 
-		    | Avgi x -> nsim_ewf x "avg"
-		    | Avgr x -> nsim_ewf x "avg"
-		    | BoolAnd x -> nsim_ewf x "bool_and"
-		    | BoolOr x -> nsim_ewf x "bool_or"
+		    | Avgi x -> nsim_ewf x "AVG"
+		    | Avgr x -> nsim_ewf x "AVG"
+		    | BoolAnd x -> nsim_ewf x "BOOL_AND"
+		    | BoolOr x -> nsim_ewf x "BOOL_OR"
 
-		    | Count -> "count(*)"
-		    | CountExpr x -> nsim_ewf x "count"
-		    | Maxi x -> nsim_ewf x "max"
-		    | Maxr x -> nsim_ewf x "max"
-		    | Maxd x -> nsim_ewf x "max"
-		    | Maxt x -> nsim_ewf x "max"
+		    | Count -> "COUNT(*)"
+		    | CountExpr x -> nsim_ewf x "COUNT"
+		    | Maxi x -> nsim_ewf x "MAX"
+		    | Maxr x -> nsim_ewf x "MAX"
+		    | Maxd x -> nsim_ewf x "MAX"
+		    | Maxt x -> nsim_ewf x "MAX"
 
-		    | Mini x -> nsim_ewf x "min"
-		    | Minr x -> nsim_ewf x "min"
-		    | Mind x -> nsim_ewf x "min"
-		    | Mint x -> nsim_ewf x "min"
+		    | Mini x -> nsim_ewf x "MIN"
+		    | Minr x -> nsim_ewf x "MIN"
+		    | Mind x -> nsim_ewf x "MIN"
+		    | Mint x -> nsim_ewf x "MIN"
 
 		    | StringAgg (x, del) ->
-			"string_agg" ^ wp (nsim_soe x ^ ", " ^ escaped_string del)
+			"STRING_AGG" ^ wp (nsim_soe x ^ ", " ^ escaped_string del)
 
-		    | Sumi x -> nsim_ewf x "sum"
-		    | Sumr x -> nsim_ewf x "sum"
+		    | Sumi x -> nsim_ewf x "SUM"
+		    | Sumr x -> nsim_ewf x "SUM"
 
 		    | IsNull x -> nsim_soe x ^ " IS NULL"
 		    | Eq (x1, x2) -> nsim_eas x1 x2 " = "

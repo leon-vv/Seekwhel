@@ -219,6 +219,7 @@ module Make : functor (C : Connection)
 	val limit : int -> t -> t
 	val offset : int -> t -> t
 	val order_by : 'a expr -> order_dir -> t -> t
+	val having : bool expr -> t -> t 
 
 	(* Cross join is equal to INNER JOIN ON (TRUE) *)
 	type join_direction =

@@ -412,6 +412,7 @@ module Make (C : Connection) = struct
 	    limit : int option ;
 	    order_by : (any_expr * order_dir) list ;
 	    group_by : any_expr list ;
+	    having : bool expr option ;
 	    offset : int option
 	}
 	and join = {
@@ -664,8 +665,12 @@ module Make (C : Connection) = struct
 		|> String.concat ", "
 		|> within_paren
 		|> (fun s -> "DISTINCT ON " ^ s)
+	
+	and string_of_having = function
+	    | None -> ""
+	    | Some x -> "HAVING " ^ string_of_expr x
 
-	and to_string {distinct; target; table; where; join; limit; order_by; group_by; offset} =
+	and to_string {distinct; target; table; where; join; limit; order_by; group_by; having; offset} =
 	    let target_part = string_of_target target
 	    and sqi = safely_quote_identifier
 	    in let first_part =
@@ -675,6 +680,7 @@ module Make (C : Connection) = struct
 	    in first_and_joined 
 	    ^ (where_clause_of_optional_expr where)
 	    ^ "\n" ^ string_of_group_by group_by
+	    ^ "\n" ^ string_of_having having
 	    ^ "\n" ^ string_of_order_by order_by
 	    ^ "\n" ^ string_of_limit limit
 	    ^ "\n" ^ string_of_offset offset
@@ -786,6 +792,7 @@ module Make (C : Connection) = struct
 	    limit = None ;
 	    order_by = [] ;
 	    group_by = [] ;
+	    having = None ;
 	    offset = None
 	}
 
@@ -796,6 +803,8 @@ module Make (C : Connection) = struct
 	let offset count query = { query with offset = Some count }
 
 	let group_by columns query = { query with group_by = columns }
+
+	let having expr query = { query with having = Some expr }
 
 	let combine_optional_expr expr new_expr =
 	    Some (match expr with

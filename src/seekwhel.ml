@@ -828,40 +828,52 @@ module Make (C : Connection) = struct
 	    in let mn = maybe_null
 	    and tin = throw_if_null
 
+	    in let tini () = tin int_of_string
+	    and tinf () = tin float_of_string
+	    and tins () = tin (fun s -> s)
+	    and tind () = tin date_of_string
+	    and tinb () = tin bool_of_string
+
+	    and mni () = mn int_of_string
+	    and mnf () = mn float_of_string
+	    and mns () = mn (fun s -> s)
+	    and mnd () = mn date_of_string
+	    and mnb () = mn bool_of_string
+
 	    in match e with
 	    | Column c -> tin (column_value_of_string c)
-	    | Int _ -> tin int_of_string
-	    | Real _ -> tin float_of_string
-	    | Text _ -> tin (fun s -> s)
-	    | Date _ -> tin date_of_string
-	    | Bool _ -> tin bool_of_string
+	    | Int _ -> tini ()
+	    | Real _ -> tinf ()
+	    | Text _ -> tins ()
+	    | Date _ -> tind ()
+	    | Bool _ -> tinb ()
 	    | Custom {of_psql_string} -> tin of_psql_string
 
 	    | Null -> None
-	    | IntNull _ -> mn int_of_string
-	    | RealNull _ -> mn float_of_string
-	    | TextNull _ -> mn (fun s -> s)
-	    | DateNull _ -> mn date_of_string
-	    | BoolNull _ -> mn bool_of_string
+	    | IntNull _ -> mni ()
+	    | RealNull _ -> mnf ()
+	    | TextNull _ -> mns ()
+	    | DateNull _ -> mnd ()
+	    | BoolNull _ -> mnb ()
 	    | CustomNull {of_psql_string} -> mn of_psql_string
 
 	    | Coalesce (_, x) -> expression_value_of_string x is_null s
-	    | Random -> tin float_of_string
-	    | Sqrti _ -> tin float_of_string
-	    | Sqrtr _ -> tin float_of_string
-	    | Addi _ -> tin int_of_string
-	    | Addr _ -> tin float_of_string
-	    | Multi _ -> tin int_of_string
-	    | Multr _ -> tin float_of_string
-	    | Divi _ -> tin int_of_string
-	    | Divr _ -> tin float_of_string
-	    | Mod _ -> tin int_of_string
-	    | Expr _ -> tin float_of_string
-	    | Absi _ -> tin int_of_string
-	    | Absr _ -> tin float_of_string
-	    | Round _ -> tin float_of_string
-	    | Ceil _ -> tin int_of_string
-	    | Trunc _ -> tin int_of_string
+	    | Random -> tinf ()
+	    | Sqrti _ -> tinf ()
+	    | Sqrtr _ -> tinf ()
+	    | Addi _ -> tini ()
+	    | Addr _ -> tinf ()
+	    | Multi _ -> tini ()
+	    | Multr _ -> tinf ()
+	    | Divi _ -> tini ()
+	    | Divr _ -> tinf ()
+	    | Mod _ -> tini ()
+	    | Expr _ -> tinf ()
+	    | Absi _ -> tini ()
+	    | Absr _ -> tinf ()
+	    | Round _ -> tinf ()
+	    | Ceil _ -> tini ()
+	    | Trunc _ -> tini ()
 
 	    | Concat _ -> s
 	    | CharLength _ -> int_of_string s
@@ -871,64 +883,64 @@ module Make (C : Connection) = struct
 
 	    | LocalTimeStamp -> date_of_string s
 
-	    | Avgi _ -> mn float_of_string
-	    | Avgr _ -> mn float_of_string
-	    | BoolAnd _ -> mn bool_of_string
-	    | BoolOr _ -> mn bool_of_string
+	    | Avgi _ -> mnf ()
+	    | Avgr _ -> mnf ()
+	    | BoolAnd _ -> mnb ()
+	    | BoolOr _ -> mnb ()
 	    | Count -> int_of_string s
 	    | CountExpr x -> int_of_string s
 	    
-	    | Maxi _ -> mn int_of_string
-	    | Maxr _ -> mn float_of_string
-	    | Maxd _ -> mn date_of_string
-	    | Maxt _ -> mn (fun s -> s)
+	    | Maxi _ -> mni ()
+	    | Maxr _ -> mnf ()
+	    | Maxd _ -> mnd ()
+	    | Maxt _ -> mns ()
 	    
-	    | Mini _ -> mn int_of_string
-	    | Minr _ -> mn float_of_string
-	    | Mind _ -> mn date_of_string
-	    | Mint _ -> mn (fun s -> s)
+	    | Mini _ -> mni ()
+	    | Minr _ -> mnf ()
+	    | Mind _ -> mnd ()
+	    | Mint _ -> mns ()
 	    
-	    | StringAgg _ -> mn (fun s -> s)
+	    | StringAgg _ -> mns ()
 	    
-	    | Sumi _ -> mn int_of_string
-	    | Sumr _ -> mn float_of_string
+	    | Sumi _ -> mni ()
+	    | Sumr _ -> mnf ()
 
-	    | IsNull _ -> tin bool_of_string
-	    | Eq _ -> tin bool_of_string
-	    | GT _ -> tin bool_of_string
-	    | LT _ -> tin bool_of_string
-	    | Not _ -> tin bool_of_string
-	    | And _ -> tin bool_of_string
-	    | Or _ -> tin bool_of_string
-	    | In _ -> tin bool_of_string
+	    | IsNull _ -> tinb ()
+	    | Eq _ -> tinb ()
+	    | GT _ -> tinb ()
+	    | LT _ -> tinb ()
+	    | Not _ -> tinb ()
+	    | And _ -> tinb ()
+	    | Or _ -> tinb ()
+	    | In _ -> tinb ()
 
 	    | Case (_, x1, _) -> expression_value_of_string x1 is_null s
-	    | Greatesti _ -> tin int_of_string
-	    | Greatestr _ -> tin float_of_string
-	    | Greatestd _ -> tin date_of_string
-	    | Greatestt _ -> tin (fun s -> s)
+	    | Greatesti _ -> tini ()
+	    | Greatestr _ -> tinf ()
+	    | Greatestd _ -> tind ()
+	    | Greatestt _ -> tins ()
 
-	    | Leasti _ -> tin int_of_string
-	    | Leastr _ -> tin float_of_string
-	    | Leastd _ -> tin date_of_string
-	    | Leastt _ -> tin (fun s -> s)
+	    | Leasti _ -> tini ()
+	    | Leastr _ -> tinf ()
+	    | Leastd _ -> tind ()
+	    | Leastt _ -> tins ()
 
-	    | Exists _ -> tin bool_of_string
-	    | AnyEq1 _ -> tin bool_of_string
-	    | AnyEq2 _ -> tin bool_of_string
-	    | AnyEqN _ -> tin bool_of_string
-	    | AnyGt _ -> tin bool_of_string
-	    | AnyLt _ -> tin bool_of_string
-	    | AllEq1 _ -> tin bool_of_string
-	    | AllEq2 _ -> tin bool_of_string
-	    | AllEqN _ -> tin bool_of_string
-	    | AllGt _ -> tin bool_of_string
-	    | AllLt _ -> tin bool_of_string
+	    | Exists _ -> tinb ()
+	    | AnyEq1 _ -> tinb ()
+	    | AnyEq2 _ -> tinb ()
+	    | AnyEqN _ -> tinb ()
+	    | AnyGt _ -> tinb ()
+	    | AnyLt _ -> tinb ()
+	    | AllEq1 _ -> tinb ()
+	    | AllEq2 _ -> tinb ()
+	    | AllEqN _ -> tinb ()
+	    | AllGt _ -> tinb ()
+	    | AllLt _ -> tinb ()
 
-	    | Casti x -> tin int_of_string
-	    | Castr x -> tin float_of_string
-	    | Castt x -> tin (fun s -> s)
-	    | Castd x -> tin date_of_string
+	    | Casti x -> tini ()
+	    | Castr x -> tinf ()
+	    | Castt x -> tins ()
+	    | Castd x -> tind ()
 
 
 	let expr_value_opt (qres, target) row expr =

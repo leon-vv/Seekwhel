@@ -68,6 +68,7 @@ module Make : functor (C : Connection)
 	    of_psql_string : string -> 'a
 	}
 
+
 	type order_dir =
 		    | ASC
 		    | DESC
@@ -198,6 +199,8 @@ module Make : functor (C : Connection)
 	    | AnyExpr : 'a expr -> any_expr
 	and target = any_expr array
 	
+
+	val q : from:string -> target -> t
 
 	val string_of_expr : ?indent:int -> 'a expr -> string
 

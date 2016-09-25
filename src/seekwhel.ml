@@ -405,7 +405,7 @@ module Make (C : Connection) = struct
 	and t = {
 	    distinct : any_expr list option ;
 	    target : target ;
-	    table: string ;
+	    from: string ;
 	    where : bool expr option ;
 	    join : join list ;
 	    limit : int option ;
@@ -422,13 +422,21 @@ module Make (C : Connection) = struct
 
 	type result = Postgresql.result * target
 
-	let string_of_limit = function
-	    | None -> ""
-	    | Some n -> " LIMIT " ^ (string_of_int n)
+	let rec whitespace_of_indent = function
+	    | 0 -> ""
+	    | n -> "\t" ^ whitespace_of_indent (n-1)
 
-	let string_of_offset = function
-	    | None -> ""
-	    | Some n -> "OFFSET " ^ (string_of_int n)
+	let string_of_limit ~indent limit =
+	    let w = whitespace_of_indent indent
+	    in match limit with
+		| None -> ""
+		| Some n -> "\n" ^ w ^ "LIMIT " ^ (string_of_int n)
+
+	let string_of_offset ~indent offset =
+	    let w = whitespace_of_indent indent
+	    in match offset with
+		| None -> ""
+		| Some n -> "\n" ^ w ^ "OFFSET " ^ (string_of_int n)
 
 	let string_of_order_dir = function
 	    | DESC -> "DESC"
@@ -459,10 +467,6 @@ module Make (C : Connection) = struct
 	    | _ -> false
 
 	let within_paren s = "(" ^ s ^ ")"
-
-	let rec whitespace_of_indent = function
-	    | 0 -> ""
-	    | n -> "\t" ^ whitespace_of_indent (n-1)
 
 	let rec nsim_soe : type a. a expr -> indent:int -> string = fun x ~indent ->
 	    if is_simple_value_constructor x then string_of_expr ~indent x
@@ -662,16 +666,27 @@ module Make (C : Connection) = struct
 		    | Castt expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS TEXT)"
 		    | Castd expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS TIMESTAMP)"
 
-	and where_clause_of_optional_expr ~indent = function
-	    | None -> ""
-	    | Some expr -> " WHERE " ^ string_of_expr ~indent expr
+	and where_clause_of_optional_expr ~indent opt_expr = 
+	    let w = whitespace_of_indent indent
+	    in match opt_expr with
+		| None -> ""
+		| Some expr -> "\n" ^ w ^ "WHERE " ^ string_of_expr ~indent expr
 
 	and string_of_target ~indent target =
-	    Array.(
+	    let w = whitespace_of_indent indent
+	    in Array.(
 		map (fun (AnyExpr x) -> string_of_expr ~indent x) target
 		|> to_list
-		|> String.concat "\n, ")
+		|> String.concat ("\n" ^ w ^ ", "))
 	
+	and string_of_from ~indent table =
+	    let w = whitespace_of_indent indent
+	    in 
+		"\n" ^ w ^ "FROM " ^
+		safely_quote_identifier table
+
+	and string_of_where ~indent where = 
+		(where_clause_of_optional_expr ~indent where)
 	and string_of_distinct ~indent = function
 	    | None -> ""
 	    | Some [] -> "DISTINCT "
@@ -681,50 +696,59 @@ module Make (C : Connection) = struct
 		|> within_paren
 		|> (fun s -> "DISTINCT ON " ^ s)
 	
-	and string_of_having ~indent = function
-	    | None -> ""
-	    | Some x -> "HAVING " ^ string_of_expr ~indent x
-
-	and to_string {distinct; target; table; where; join; limit; order_by; group_by; having; offset} =
+	and string_of_having ~indent having =
+	    let w = whitespace_of_indent indent
+	    in match having with
+		| None -> ""
+		| Some x -> "\n" ^ w ^ "HAVING " ^ string_of_expr ~indent x
+	
+	and string_of_order_by ~indent lst =
+	    let w = whitespace_of_indent indent
+	    and string_of_single ((AnyExpr x), dir) =
+		(x |> nsim_soe ~indent)
+		^ " " ^ string_of_order_dir dir
+	    in 
+		match lst with
+		    | x::_ as xs -> "\n" ^ w ^ "ORDER BY " ^
+			String.concat
+			    ", "
+			    (List.map string_of_single xs)
+		    | _ -> ""
+	
+	and to_string s =
 	    let aux indent =
-		" SELECT "
-		^ string_of_distinct ~indent distinct
-		^ string_of_target ~indent target
-		^ " FROM " ^ safely_quote_identifier table
-			^ (where_clause_of_optional_expr ~indent where)
-		^ "\n" ^ string_of_join_list ~indent join
-		^ "\n" ^ string_of_group_by ~indent group_by
-		^ "\n" ^ string_of_having ~indent having
-		^ "\n" ^ string_of_order_by ~indent order_by
-		^ "\n" ^ string_of_limit limit
-		^ "\n" ^ string_of_offset offset
+		(* whitespace *)
+		" SELECT " ^ string_of_distinct ~indent s.distinct
+		    ^ string_of_target ~indent s.target
+		    ^ string_of_from ~indent s.from
+		    ^ string_of_where ~indent s.where
+		    ^ string_of_join_list ~indent s.join
+		    ^ string_of_group_by ~indent s.group_by
+		    ^ string_of_having ~indent s.having
+		    ^ string_of_order_by ~indent s.order_by
+		    ^ string_of_limit ~indent s.limit
+		    ^ string_of_offset ~indent s.offset
 	    in aux 0
 	
 	and string_of_group_by ~indent lst =
-	    match lst with
-		| x::_ as xs -> "GROUP BY " ^ (xs
-		    |> List.map (fun (AnyExpr x) ->
-			x |> string_of_expr ~indent |> within_paren)
+	    let w = whitespace_of_indent indent
+	    in 
+		match lst with
+		    | x::_ as xs -> "\n" ^ w ^ "GROUP BY " ^ (xs
+			|> List.map (fun (AnyExpr x) -> x
+			    |> string_of_expr ~indent 
+			    |> within_paren)
+			    |> String.concat ", ")
 
-		    |> String.concat ", ")
-		| _ -> ""
-
-	and string_of_order_by ~indent lst =
-	    match lst with
-		| x::_ as xs ->	"ORDER BY " ^ (xs
-		    |> List.map (fun ((AnyExpr x), dir) ->
-			let x_str = x |> string_of_expr ~indent |> within_paren
-			in x_str ^ " " ^ string_of_order_dir dir)
-		    |> String.concat ", ")
-		| _ -> ""
-
+		    | _ -> ""
 	and string_of_join ~indent {direction; table_name; on} =
-	    let name = safely_quote_identifier (fst table_name)
+	    let w = whitespace_of_indent indent
+	    in let name = safely_quote_identifier (fst table_name)
 	    and abbr = match (snd table_name) with
 		| Some abbr -> " " ^ safely_quote_identifier abbr
 		| None -> ""
 	    in let name_part = name ^ " " ^ abbr
-	    in string_of_direction direction ^ " JOIN " ^ name_part
+	    in "\n" ^ w ^ string_of_direction direction ^ " JOIN " ^ name_part
 		^ " ON " ^ within_paren (string_of_expr ~indent on)
 
 	 and string_of_join_list ~indent joins =
@@ -803,10 +827,10 @@ module Make (C : Connection) = struct
 	    | [x1] -> Some x1
 	    | _ -> None (* Can't create an expression from an empty list *)
 
-	let q ~table target = {
+	let q ~from target = {
 	    distinct = None ;
 	    target ;
-	    table ;
+	    from ;
 	    where = None ;
 	    join = [] ;
 	    limit = None ;
@@ -1152,7 +1176,7 @@ module Make (C : Connection) = struct
 
     module Queryable (T : Table) = struct
 	
-	let select_q = Select.q ~table:T.name
+	let select_q = Select.q ~from:T.name
 	let update_q = Update.q ~table:T.name
 	let insert_q = Insert.q ~table:T.name
 	let delete_q = Delete.q ~table:T.name
@@ -1283,12 +1307,11 @@ module Make (C : Connection) = struct
 	
 	let join dir ~on expr =
 	    let columns = Array.append Q1.columns Q2.columns
-	    in let result = Select.q
-		    ~table:T1.name
-		    columns
+	    in let result = Select.q ~from:T1.name columns
 		|> Select.where expr
 		|> Select.join T2.name dir ~on
 		|> Select.exec
+
 	    and gfpc = get_first_primary_column
 	    in match (gfpc (module T1), gfpc (module T2)) with
 		| (Select.AnyExpr x1, Select.AnyExpr x2) ->

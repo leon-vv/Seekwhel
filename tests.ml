@@ -122,10 +122,10 @@ let string_of_order_by_list_test () =
     test1 (string_of_order_by ~indent:0)
 	Select.([
 	    ([], "") ;
-	    ([(AnyExpr (Column (Columni "stock")), ASC)], "ORDER BY (stock) ASC") ;
+	    ([(AnyExpr (Column (Columni "stock")), ASC)], "\nORDER BY stock ASC") ;
 	    ([(AnyExpr (Column (Columni "stock")), ASC);
 	    (AnyExpr (Addi ((Int 10), (Int 30))), Select.DESC)],
-		"ORDER BY (stock) ASC, (10 + 30) DESC")
+		"\nORDER BY stock ASC, (10 + 30) DESC")
 	])
 
 let safely_quote_column_test () =

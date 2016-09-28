@@ -581,7 +581,10 @@ module Make (C : Connection) = struct
 
 		(* select within parentheses *)
 		and subselect s =
-		    "\n(\n" ^ to_string_indent ~indent:(indent+1) s ^ ")\n"
+		    let w = whitespace_of_indent indent
+		    in "\n" ^ w ^ "(\n"
+		    ^ to_string_indent ~indent:(indent+1) s
+		    ^ w ^ ")\n"
 
 		(* Separator between expression and select
 		subquery *)

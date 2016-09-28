@@ -584,7 +584,7 @@ module Make (C : Connection) = struct
 		    let w = whitespace_of_indent indent
 		    in "\n" ^ w ^ "(\n"
 		    ^ to_string_indent ~indent:(indent+1) s
-		    ^ w ^ ")\n"
+		    ^ w ^ ")"
 
 		(* Separator between expression and select
 		subquery *)
@@ -715,24 +715,24 @@ module Make (C : Connection) = struct
 		    | Exists sel -> "EXISTS " ^ subselect sel
 
 		    | AnyEq1 (x, select) ->
-			sep_between_x_sel x " = ANY " select
+			sep_between_x_sel x " = ANY" select
 		    | AnyEq2 (x1, x2, select) ->
-			wp (p_soe ~indent x1 ^ "," ^ p_soe ~indent x2) ^ " = ANY " ^ subselect select
+			wp (p_soe ~indent x1 ^ "," ^ p_soe ~indent x2) ^ " = ANY" ^ subselect select
 		    | AnyEqN (lst, select) ->
-			concat_any_expr lst ^ " = ANY " ^ subselect select
+			concat_any_expr lst ^ " = ANY" ^ subselect select
 
-		    | AnyGt (x, select) -> sep_between_x_sel x " > ANY " select
-		    | AnyLt (x, select) -> sep_between_x_sel x " < ANY " select
+		    | AnyGt (x, select) -> sep_between_x_sel x " > ANY" select
+		    | AnyLt (x, select) -> sep_between_x_sel x " < ANY" select
 
 		    | AllEq1 (x, select) ->
 			sep_between_x_sel x " = ALL" select
 		    | AllEq2 (x1, x2, select) ->
-			wp (p_soe ~indent x1 ^ "," ^ p_soe ~indent x2) ^ " = ALL " ^ subselect select
+			wp (p_soe ~indent x1 ^ "," ^ p_soe ~indent x2) ^ " = ALL" ^ subselect select
 		    | AllEqN (lst, select) ->
-			concat_any_expr lst ^ " = ALL " ^ subselect select
+			concat_any_expr lst ^ " = ALL" ^ subselect select
 
-		    | AllGt (x, select) -> sep_between_x_sel x " > ALL " select
-		    | AllLt (x, select) -> sep_between_x_sel x " < ALL " select
+		    | AllGt (x, select) -> sep_between_x_sel x " > ALL" select
+		    | AllLt (x, select) -> sep_between_x_sel x " < ALL" select
 		    
 		    | Casti expr -> "CAST(" ^ p_soe ~indent expr ^ " AS INT)"
 		    | Castr expr -> "CAST(" ^ p_soe ~indent expr ^ " AS DOUBLE PRECISION)"

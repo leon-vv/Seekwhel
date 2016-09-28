@@ -288,11 +288,6 @@ let run_pure_tests () = List.fold_left
     - Update some persons and some posts.
 *)
 
-let string_of_file f =
-    let ch = open_in f
-    in let l = in_channel_length ch
-    in really_input_string ch l
-	
 
 module Person = struct
     let name = "person"
@@ -346,10 +341,10 @@ module Post = struct
 	id = 0
     }
 
-    let person_name_s = "person_name_s"
-    let date_s = "date_s"
-    let content_s = "content_s"
-    let id_s = "id_s"
+    let person_name_s = "person_name"
+    let date_s = "date"
+    let content_s = "content"
+    let id_s = "id"
 
     let person_name_col = Columnt person_name_s
     let date_col = Columnd date_s
@@ -385,6 +380,23 @@ end
 module QPerson = Queryable(Person)
 module QPost = Queryable(Post)
 
+
+let string_of_test_file f =
+    let path = "./tests/" ^ f ^ ".sql"
+    in let ch = open_in path
+    in let l = in_channel_length ch
+    in really_input_string ch l
+
+
+let select1_query = QPerson.select_q [|AnyExpr (Column Person.name_col)|]
+    |> where (AnyGt (
+	(CharLength 
+	    (Coalesce (
+		Column Person.parent_col,
+		Text ""))),
+	(QPost.select_q [|AnyExpr (Column Post.id_col)|]) ))
+
+
 let run_database_tests () =
     (* Clean previous database operations *)
     QPerson.delete_q
@@ -415,27 +427,18 @@ let run_database_tests () =
 	check if they result in the same queries as the files
 	in /tests/* contain. *)
 	let file_with_query = [
-	    ("select",
-		`Select (QPerson.select_q [|AnyExpr (Column Person.name_col)|]
-		    |> where (AnyGt (
-			(CharLength 
-			    (Coalesce (
-				Column Person.parent_col,
-				Text ""))),
-			(QPost.select_q [|AnyExpr (Column Post.id_col)|]) ))))
+	    ("select", `Select select1_query )
 	] in List.iter (fun (f, q) ->
-		let path = "./tests/" ^ f ^ ".sql"
-		in let query = string_of_file path
-		in (print_endline path ;
-		    let s = match q with
-			| `Select s -> Select.to_string s
-		    in
-			if query = s
-			then ignore (conn#exec s) (* Execute to make sure the syntax is valid. *)
-			else (
-			    print_endline ("\n\nTest " ^ f ^ " failed.\n") ;
-			    print_endline ("Query produced: \n\n" ^ s) ;
-			    print_endline ("\nQuery expected: \n\n" ^ query))))
+	    let query = string_of_test_file f
+	    in let s = match q with
+		| `Select s -> Select.to_string s
+	    in
+		if query = s
+		then ignore (conn#exec s) (* Execute to make sure the syntax is valid. *)
+		else (
+		    print_endline ("\n\nTest " ^ f ^ " failed.\n") ;
+		    print_endline ("Query produced: \n\n" ^ s) ;
+		    print_endline ("\nQuery expected: \n\n" ^ query)))
 	    file_with_query ;
 
 	Seekwhel_test.connection#finish 

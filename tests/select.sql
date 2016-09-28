@@ -1,7 +1,7 @@
 SELECT "name"
-FROM Person
-WHERE CHAR_LENGTH(COALESCE(parent, "")) > ANY
+FROM person
+WHERE CHAR_LENGTH(COALESCE(parent, '')) > ANY
 (
-	SELECT id
-	FROM Post
+	SELECT "id"
+	FROM post
 )

@@ -5,13 +5,15 @@
 
 open CalendarLib
 
+let conn = try new Postgresql.connection
+    ~host:"127.0.0.1"
+    ~dbname:"seekwhel_test"
+    ~user:"seekwhel_test"
+    ~password:"seekwhel_test" ()
+with Postgresql.Error e -> failwith (Postgresql.string_of_error e)
+
 module Seekwhel_test : Seekwhel.Connection = struct
-    let connection = try new Postgresql.connection
-	~host:"127.0.0.1"
-	~dbname:"seekwhel_test"
-	~user:"seekwhel_test"
-	~password:"seekwhel_test" ()
-    with Postgresql.Error e -> failwith (Postgresql.string_of_error e)
+    let connection = conn
 end
 
 module S = Seekwhel.Make(Seekwhel_test)
@@ -286,6 +288,12 @@ let run_pure_tests () = List.fold_left
     - Update some persons and some posts.
 *)
 
+let string_of_file f =
+    let ch = open_in f
+    in let l = in_channel_length ch
+    in really_input_string ch l
+	
+
 module Person = struct
     let name = "person"
 
@@ -377,12 +385,14 @@ end
 module QPerson = Queryable(Person)
 module QPost = Queryable(Post)
 
-let run_integration_tests () =
+let run_database_tests () =
+    (* Clean previous database operations *)
     QPerson.delete_q
 	|> Delete.exec ;
     QPost.delete_q
 	|> Delete.exec ;
  
+    (* Do some tests of the high-level Queryable operations *)
     let catarina = Person.{
 	name = "Catarina" ;
 	parent = None
@@ -396,16 +406,44 @@ let run_integration_tests () =
 
 	QPerson.update [| { catarina with Person.parent = Some "Jhonny" } |] ;
 
-	let jhonny_option = QPerson.select_unique
-	    (Eq (Column Person.name_col, Text "Jhonny")) in (match jhonny_option with
-	    | None -> failwith "Jhonny not found"
-	    | Some j -> assert (j = jhonny)) ;
-	
-	Seekwhel_test.connection#finish
+	let jhonny_option = QPerson.select_unique (Eq (Column Person.name_col, Text "Jhonny"))
+	in (match jhonny_option with
+		| None -> failwith "Jhonny not found"
+		| Some j -> assert (j = jhonny)) ;
+
+	(* Now we'll produce some complicated queries and
+	check if they result in the same queries as the files
+	in /tests/* contain. *)
+	let file_with_query = [
+	    ("select",
+		`Select (QPerson.select_q [|AnyExpr (Column Person.name_col)|]
+		    |> where (AnyGt (
+			(CharLength 
+			    (Coalesce (
+				Column Person.parent_col,
+				Text ""))),
+			(QPost.select_q [|AnyExpr (Column Post.id_col)|]) ))))
+	] in List.iter (fun (f, q) ->
+		let path = "./tests/" ^ f ^ ".sql"
+		in let query = string_of_file path
+		in (print_endline path ;
+		    let s = match q with
+			| `Select s -> Select.to_string s
+		    in
+			if query = s
+			then ignore (conn#exec s) (* Execute to make sure the syntax is valid. *)
+			else (
+			    print_endline ("\n\nTest " ^ f ^ " failed.\n") ;
+			    print_endline ("Query produced: \n\n" ^ s) ;
+			    print_endline ("\nQuery expected: \n\n" ^ query))))
+	    file_with_query ;
+
+	Seekwhel_test.connection#finish 
+    
 
 let _ = match Sys.argv with
     | [|_ ; "pure" |] -> ignore (run_pure_tests ())
-    | [|_ ; "database" |] -> ignore (run_integration_tests ())
+    | [|_ ; "database" |] -> ignore (run_database_tests ())
     | _ -> print_endline "Please supply a command (either 'pure' or 'database')"
 
     

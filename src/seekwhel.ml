@@ -443,20 +443,84 @@ module Make (C : Connection) = struct
 	    | ASC -> "ASC"
 
 
-	let is_simple_value_constructor (type a) (x: a expr) =
+	(*
+	    Expressions for which the surrounding
+	    expression will never yield different
+	    results depending on whether the expression is
+	    surrounded by parentheses. For example, Addi
+	    is not such an expression, since 2 * 5 + 2
+	    is different from 2 * (5 + 2). Basically, any
+	    value constructor or function (including casts)
+	    does not need surrounding parentheses.
+	*)
+	let no_paren_expr (type a) (x: a expr) =
 	    match x with
 	    | Column _ -> true
+
 	    | Int _ -> true
 	    | Real _ -> true
 	    | Text _ -> true
 	    | Date _ -> true
+	    | Bool _ -> true
+
 	    | Null -> true
 	    | IntNull _ -> true
 	    | RealNull _ -> true
 	    | TextNull _ -> true
 	    | DateNull _ -> true
+	    | BoolNull _ -> true
+
+	    | Coalesce _ -> true
+	    | Random -> true
+	    | Round _ -> true
+	    | Ceil _ -> true
+	    | Trunc _ -> true
+
+	    | CharLength _ -> true
+	    | Lower _ -> true
+	    | Upper _ -> true
+
 	    | LocalTimeStamp -> true
+
+	    | Avgi _ -> true
+	    | Avgr _ -> true
+	    | BoolAnd _ -> true
+	    | BoolOr _ -> true
+
+	    | Count -> true
+	    | CountExpr _ -> true
+	    | Maxi _ -> true
+	    | Maxr _ -> true
+	    | Maxd _ -> true
+	    | Maxt _ -> true
+
+	    | Mini _ -> true
+	    | Minr _ -> true
+	    | Mind _ -> true
+	    | Mint _ -> true
+
+	    | StringAgg _ -> true
+
+	    | Sumi _ -> true
+	    | Sumr _ -> true
+
+	    | Greatesti _ -> true
+	    | Greatestr _ -> true
+	    | Greatestd _ -> true
+	    | Greatestt _ -> true
+
+	    | Leasti _ -> true
+	    | Leastr _ -> true
+	    | Leastd _ -> true
+	    | Leastt _ -> true
+	
+	    | Casti _ -> true
+	    | Castr _ -> true
+	    | Castt _ -> true
+	    | Castd _ -> true
+
 	    | _ -> false
+
 
 	let is_and = function
 	    | And _ -> true
@@ -468,19 +532,22 @@ module Make (C : Connection) = struct
 
 	let within_paren s = "(" ^ s ^ ")"
 
-	let rec nsim_soe : type a. a expr -> indent:int -> string = fun x ~indent ->
-	    if is_simple_value_constructor x then string_of_expr ~indent x
-	    else x |> string_of_expr ~indent |> within_paren
+	(* Parentheses, string of expression.
+	Converts the expression to string, and puts
+	parentheses around it if needed (see no_paren_expr) *)
+	let rec p_soe : type a. a expr -> indent:int -> string = fun x ~indent ->
+	    let s = string_of_expr ~indent x
+	    in if no_paren_expr x then s else within_paren s
 
 	and string_of_case : type a. a expr -> indent:int -> string = fun c ~indent ->
 	    let rec when_of_case = function
 		| Case (cond1, then1, else1) ->
-		    (let w = "WHEN " ^ nsim_soe ~indent cond1 ^ " THEN " ^ nsim_soe ~indent then1 ^ " "
+		    (let w = "WHEN " ^ p_soe ~indent cond1 ^ " THEN " ^ p_soe ~indent then1 ^ " "
 		    in match else1 with
 			| Case _ ->
 			    w ^ when_of_case else1
 			| _ ->
-			    w ^ "ELSE " ^ nsim_soe ~indent else1)
+			    w ^ "ELSE " ^ p_soe ~indent else1)
 		| _ -> seekwhel_fail "string_of_case called with a non-Case expression"
 	    in 
 		"CASE " ^ when_of_case c ^ " END"
@@ -490,33 +557,36 @@ module Make (C : Connection) = struct
 	    fun ?indent:(indent=0) expr ->
 		let wp = within_paren
 
-		(* not simple, expr around separator 
-		puts parentheses around the expressions if
-		they're not a simple value constructor *)
-		in let nsim_eas x1 x2 sep = nsim_soe ~indent x1 ^ sep ^ nsim_soe ~indent x2
+		(* Parenthses, expr around separator.
+		Puts parentheses around the expressions if needed
+		(see p_soe). *)
+		in let p_eas x1 x2 sep = p_soe ~indent x1 ^ sep ^ p_soe ~indent x2
 
-		(* not simple, expr within func *)
-		and nsim_ewf x f = f ^ wp (nsim_soe ~indent x)
+		(* parentheses, expr within func
+		Puts parentheses around the expression if needed
+		(see p_soe). *)
+		and p_ewf x f = f ^ wp (p_soe ~indent x)
 
 		and concat_any_expr xs = 
 		    xs
-			|> List.map (fun (AnyExpr x) -> nsim_soe ~indent x)
+			|> List.map (fun (AnyExpr x) -> p_soe ~indent x)
 			|> String.concat ", "
 			|> wp
 
 		and concat_expr xs =
 		    xs
-			|> List.map (nsim_soe ~indent)
+			|> List.map (p_soe ~indent)
 			|> String.concat ", "
 			|> wp
 
 		(* select within parentheses *)
-		and select_wp s = s |> to_string |> wp
+		and subselect s =
+		    "\n(\n" ^ to_string_indent ~indent:(indent+1) s ^ ")\n"
 
 		(* Separator between expression and select
 		subquery *)
 		in let sep_between_x_sel x sep sel =
-		    nsim_soe x ~indent ^ sep ^ select_wp sel
+		    p_soe x ~indent ^ sep ^ subselect sel
 
 		and escaped_string s = "'" ^ (C.connection#escape_string s) ^ "'"
 
@@ -538,63 +608,63 @@ module Make (C : Connection) = struct
 		    | BoolNull b -> string_of_bool b
 		    | CustomNull {value; to_psql_string} -> to_psql_string value
 
-		    | Coalesce (x1, x2) -> "COALESCE(" ^ nsim_soe ~indent x1 ^ ", " ^ nsim_soe ~indent x2 ^ ")"
+		    | Coalesce (x1, x2) -> "COALESCE(" ^ p_soe ~indent x1 ^ ", " ^ p_soe ~indent x2 ^ ")"
 		    | Random -> "RANDOM()"
-		    | Sqrti x -> "|/ " ^ nsim_soe ~indent x
-		    | Sqrtr x -> "|/ " ^ nsim_soe ~indent x
-		    | Addi (x1, x2) -> nsim_eas x1 x2 " + "
-		    | Addr (x1, x2) -> nsim_eas x1 x2 " + "
-		    | Multi (x1, x2) -> nsim_eas x1 x2 " * "
-		    | Multr (x1, x2) -> nsim_eas x1 x2 " * "
-		    | Divi (x1, x2) -> nsim_eas x1 x2 " / "
-		    | Divr (x1, x2) -> nsim_eas x1 x2 " / "
-		    | Mod (x1, x2) -> nsim_eas x1 x2 " % "
-		    | Expr (x1, x2) -> nsim_eas x1 x2 " ^ "
-		    | Absi x -> "@ " ^ nsim_soe ~indent x
-		    | Absr x -> "@ " ^ nsim_soe ~indent x
-		    | Round (x, i) -> "ROUND(" ^ nsim_soe ~indent x ^ ", " ^ string_of_int i ^ ")"
-		    | Ceil x -> "CEIL(" ^ nsim_soe ~indent x ^ ")"
-		    | Trunc x -> "TRUNC(" ^ nsim_soe ~indent x ^ ")"
+		    | Sqrti x -> "|/ " ^ p_soe ~indent x
+		    | Sqrtr x -> "|/ " ^ p_soe ~indent x
+		    | Addi (x1, x2) -> p_eas x1 x2 " + "
+		    | Addr (x1, x2) -> p_eas x1 x2 " + "
+		    | Multi (x1, x2) -> p_eas x1 x2 " * "
+		    | Multr (x1, x2) -> p_eas x1 x2 " * "
+		    | Divi (x1, x2) -> p_eas x1 x2 " / "
+		    | Divr (x1, x2) -> p_eas x1 x2 " / "
+		    | Mod (x1, x2) -> p_eas x1 x2 " % "
+		    | Expr (x1, x2) -> p_eas x1 x2 " ^ "
+		    | Absi x -> "@ " ^ p_soe ~indent x
+		    | Absr x -> "@ " ^ p_soe ~indent x
+		    | Round (x, i) -> "ROUND(" ^ p_soe ~indent x ^ ", " ^ string_of_int i ^ ")"
+		    | Ceil x -> "CEIL(" ^ p_soe ~indent x ^ ")"
+		    | Trunc x -> "TRUNC(" ^ p_soe ~indent x ^ ")"
 
-		    | Concat (s1, s2) -> nsim_soe ~indent s1 ^ " || " ^ nsim_soe ~indent s2
-		    | CharLength x -> nsim_ewf x "CHAR_LENGTH"
-		    | Lower x -> nsim_ewf x "LOWER"
-		    | Upper x -> nsim_ewf x "UPPER"
+		    | Concat (s1, s2) -> p_soe ~indent s1 ^ " || " ^ p_soe ~indent s2
+		    | CharLength x -> p_ewf x "CHAR_LENGTH"
+		    | Lower x -> p_ewf x "LOWER"
+		    | Upper x -> p_ewf x "UPPER"
 		    | Regex (x, r, sensitive) ->
 			let op = if sensitive then " ~ " else " ~* "
 			in
-			    nsim_soe ~indent x ^ op ^ escaped_string r
+			    p_soe ~indent x ^ op ^ escaped_string r
 
 		    | LocalTimeStamp -> "LOCALTIMESTAMP"
 
-		    | Avgi x -> nsim_ewf x "AVG"
-		    | Avgr x -> nsim_ewf x "AVG"
-		    | BoolAnd x -> nsim_ewf x "BOOL_AND"
-		    | BoolOr x -> nsim_ewf x "BOOL_OR"
+		    | Avgi x -> p_ewf x "AVG"
+		    | Avgr x -> p_ewf x "AVG"
+		    | BoolAnd x -> p_ewf x "BOOL_AND"
+		    | BoolOr x -> p_ewf x "BOOL_OR"
 
 		    | Count -> "COUNT(*)"
-		    | CountExpr x -> nsim_ewf x "COUNT"
-		    | Maxi x -> nsim_ewf x "MAX"
-		    | Maxr x -> nsim_ewf x "MAX"
-		    | Maxd x -> nsim_ewf x "MAX"
-		    | Maxt x -> nsim_ewf x "MAX"
+		    | CountExpr x -> p_ewf x "COUNT"
+		    | Maxi x -> p_ewf x "MAX"
+		    | Maxr x -> p_ewf x "MAX"
+		    | Maxd x -> p_ewf x "MAX"
+		    | Maxt x -> p_ewf x "MAX"
 
-		    | Mini x -> nsim_ewf x "MIN"
-		    | Minr x -> nsim_ewf x "MIN"
-		    | Mind x -> nsim_ewf x "MIN"
-		    | Mint x -> nsim_ewf x "MIN"
+		    | Mini x -> p_ewf x "MIN"
+		    | Minr x -> p_ewf x "MIN"
+		    | Mind x -> p_ewf x "MIN"
+		    | Mint x -> p_ewf x "MIN"
 
 		    | StringAgg (x, del) ->
-			"STRING_AGG" ^ wp (nsim_soe ~indent x ^ ", " ^ escaped_string del)
+			"STRING_AGG" ^ wp (p_soe ~indent x ^ ", " ^ escaped_string del)
 
-		    | Sumi x -> nsim_ewf x "SUM"
-		    | Sumr x -> nsim_ewf x "SUM"
+		    | Sumi x -> p_ewf x "SUM"
+		    | Sumr x -> p_ewf x "SUM"
 
-		    | IsNull x -> nsim_soe ~indent x ^ " IS NULL"
-		    | Eq (x1, x2) -> nsim_eas x1 x2 " = "
-		    | GT (x1, x2) -> nsim_eas x1 x2 " > "
-		    | LT (x1, x2) -> nsim_eas x1 x2 " < "
-		    | Not x -> "NOT " ^ nsim_soe ~indent x
+		    | IsNull x -> p_soe ~indent x ^ " IS NULL"
+		    | Eq (x1, x2) -> p_eas x1 x2 " = "
+		    | GT (x1, x2) -> p_eas x1 x2 " > "
+		    | LT (x1, x2) -> p_eas x1 x2 " < "
+		    | Not x -> "NOT " ^ p_soe ~indent x
 
 		    (* Some special checks to reduce parentheses
 		    in ouput. This makes the query easier to read for humans,
@@ -602,28 +672,28 @@ module Make (C : Connection) = struct
 		    | And (x1, x2) ->
 			let left = if is_and x1
 			    then string_of_expr ~indent:(indent+1) x1
-			    else nsim_soe ~indent x1
+			    else p_soe ~indent x1
 
 			and right = if is_and x2
 			    then string_of_expr x2 ~indent:(indent+1)
-			    else nsim_soe ~indent x2
+			    else p_soe ~indent x2
 
 			in left ^ " AND " ^ right
 
 		    | Or (x1, x2) ->
 			let left = if is_or x1 
 			    then string_of_expr ~indent:(indent+1) x1
-			    else nsim_soe ~indent x1
+			    else p_soe ~indent x1
 
 			and right = if is_or x2
 			    then string_of_expr ~indent:(indent+1) x2
-			    else nsim_soe ~indent x2
+			    else p_soe ~indent x2
 
 			in left ^ " OR " ^ right
 
 		    | In (x1, xs) ->
-			nsim_soe ~indent x1 ^ " IN " ^ 
-			wp (String.concat ", " (List.map (nsim_soe ~indent) xs))
+			p_soe ~indent x1 ^ " IN " ^ 
+			wp (String.concat ", " (List.map (p_soe ~indent) xs))
 
 		    | Case (cond, then_, else_) as c ->
 			string_of_case ~indent c
@@ -639,14 +709,14 @@ module Make (C : Connection) = struct
 		    | Leastt xs -> "LEAST" ^ concat_expr xs
 
 
-		    | Exists sel -> to_string sel
+		    | Exists sel -> "EXISTS " ^ subselect sel
 
 		    | AnyEq1 (x, select) ->
 			sep_between_x_sel x " = ANY " select
 		    | AnyEq2 (x1, x2, select) ->
-			wp (nsim_soe ~indent x1 ^ "," ^ nsim_soe ~indent x2) ^ " = ANY " ^ select_wp select
+			wp (p_soe ~indent x1 ^ "," ^ p_soe ~indent x2) ^ " = ANY " ^ subselect select
 		    | AnyEqN (lst, select) ->
-			concat_any_expr lst ^ " = ANY " ^ select_wp select
+			concat_any_expr lst ^ " = ANY " ^ subselect select
 
 		    | AnyGt (x, select) -> sep_between_x_sel x " > ANY " select
 		    | AnyLt (x, select) -> sep_between_x_sel x " < ANY " select
@@ -654,17 +724,17 @@ module Make (C : Connection) = struct
 		    | AllEq1 (x, select) ->
 			sep_between_x_sel x " = ALL" select
 		    | AllEq2 (x1, x2, select) ->
-			wp (nsim_soe ~indent x1 ^ "," ^ nsim_soe ~indent x2) ^ " = ALL " ^ select_wp select
+			wp (p_soe ~indent x1 ^ "," ^ p_soe ~indent x2) ^ " = ALL " ^ subselect select
 		    | AllEqN (lst, select) ->
-			concat_any_expr lst ^ " = ALL " ^ select_wp select
+			concat_any_expr lst ^ " = ALL " ^ subselect select
 
 		    | AllGt (x, select) -> sep_between_x_sel x " > ALL " select
 		    | AllLt (x, select) -> sep_between_x_sel x " < ALL " select
 		    
-		    | Casti expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS INT)"
-		    | Castr expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS DOUBLE PRECISION)"
-		    | Castt expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS TEXT)"
-		    | Castd expr -> "CAST(" ^ nsim_soe ~indent expr ^ " AS TIMESTAMP)"
+		    | Casti expr -> "CAST(" ^ p_soe ~indent expr ^ " AS INT)"
+		    | Castr expr -> "CAST(" ^ p_soe ~indent expr ^ " AS DOUBLE PRECISION)"
+		    | Castt expr -> "CAST(" ^ p_soe ~indent expr ^ " AS TEXT)"
+		    | Castd expr -> "CAST(" ^ p_soe ~indent expr ^ " AS TIMESTAMP)"
 
 	and where_clause_of_optional_expr ~indent opt_expr = 
 	    let w = whitespace_of_indent indent
@@ -687,6 +757,7 @@ module Make (C : Connection) = struct
 
 	and string_of_where ~indent where = 
 		(where_clause_of_optional_expr ~indent where)
+
 	and string_of_distinct ~indent = function
 	    | None -> ""
 	    | Some [] -> "DISTINCT "
@@ -705,7 +776,7 @@ module Make (C : Connection) = struct
 	and string_of_order_by ~indent lst =
 	    let w = whitespace_of_indent indent
 	    and string_of_single ((AnyExpr x), dir) =
-		(x |> nsim_soe ~indent)
+		(x |> p_soe ~indent)
 		^ " " ^ string_of_order_dir dir
 	    in 
 		match lst with
@@ -714,34 +785,8 @@ module Make (C : Connection) = struct
 			    ", "
 			    (List.map string_of_single xs)
 		    | _ -> ""
-	
-	and to_string s =
-	    let aux indent =
-		(* whitespace *)
-		" SELECT " ^ string_of_distinct ~indent s.distinct
-		    ^ string_of_target ~indent s.target
-		    ^ string_of_from ~indent s.from
-		    ^ string_of_where ~indent s.where
-		    ^ string_of_join_list ~indent s.join
-		    ^ string_of_group_by ~indent s.group_by
-		    ^ string_of_having ~indent s.having
-		    ^ string_of_order_by ~indent s.order_by
-		    ^ string_of_limit ~indent s.limit
-		    ^ string_of_offset ~indent s.offset
-	    in aux 0
-	
-	and string_of_group_by ~indent lst =
-	    let w = whitespace_of_indent indent
-	    in 
-		match lst with
-		    | x::_ as xs -> "\n" ^ w ^ "GROUP BY " ^ (xs
-			|> List.map (fun (AnyExpr x) -> x
-			    |> string_of_expr ~indent 
-			    |> within_paren)
-			    |> String.concat ", ")
 
-		    | _ -> ""
-	and string_of_join ~indent {direction; table_name; on} =
+    	and string_of_join ~indent {direction; table_name; on} =
 	    let w = whitespace_of_indent indent
 	    in let name = safely_quote_identifier (fst table_name)
 	    and abbr = match (snd table_name) with
@@ -753,6 +798,33 @@ module Make (C : Connection) = struct
 
 	 and string_of_join_list ~indent joins =
 	    String.concat "\n" (List.map (string_of_join ~indent) joins) ^ "\n"
+
+	and string_of_group_by ~indent lst =
+	    let w = whitespace_of_indent indent
+	    in 
+		match lst with
+		    | x::_ as xs -> "\n" ^ w ^ "GROUP BY " ^ (xs
+			|> List.map (fun (AnyExpr x) -> x
+			    |> string_of_expr ~indent 
+			    |> within_paren)
+			    |> String.concat ", ")
+
+		    | _ -> ""
+
+	and to_string_indent ~indent s =
+	    (* whitespace *)
+	    let w = whitespace_of_indent indent
+	    in w ^ "SELECT " ^ string_of_distinct ~indent s.distinct
+		^ string_of_target ~indent s.target
+		^ string_of_from ~indent s.from
+		^ string_of_where ~indent s.where
+		^ string_of_join_list ~indent s.join
+		^ string_of_group_by ~indent s.group_by
+		^ string_of_having ~indent s.having
+		^ string_of_order_by ~indent s.order_by
+		^ string_of_limit ~indent s.limit
+		^ string_of_offset ~indent s.offset
+
 
 	let expr_of_value : type a. a -> a column -> a expr
 	    = fun val_ col -> 
@@ -777,6 +849,8 @@ module Make (C : Connection) = struct
 		maybe_null val_ (fun v ->
 		    CustomNull { value = v ; to_psql_string ; of_psql_string })
 
+
+	let to_string = to_string_indent ~indent:0
 	    
 	type 'a expr_or_default =
 	    | Expr of 'a expr

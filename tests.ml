@@ -232,7 +232,7 @@ module String_of_expr_test = struct
 	least_double >>|| "LEAST(20.3, (|/ 20.3))" ;
 	least_triple >>|| "LEAST(10, (10 + 10), 10)";
 
-	root_coalesce >>|| "|/ (COALESCE(100, 10))" ;
+	root_coalesce >>|| "|/ COALESCE(100, 10)" ;
 	logical >>||
 	    "(price = 10.) AND (stock > 5) AND (price = 10.) AND ((100 IS NULL) OR (100 IS NULL) OR (NOT (price = 10.)))" ;;
 	     

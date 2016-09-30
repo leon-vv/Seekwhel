@@ -125,8 +125,6 @@ module Make (C : Connection) = struct
 	    | ColumnbNull cn -> ColumnbNull (rtis cn new_name)
 	    | ColumnCustomNull ({name} as cust) -> ColumnCustomNull {cust with name = rtis name new_name}
 
-    let ( <|| ) = rename_table
-
     type parser_state = 
 	| Begin (* Start *)
 	| Read (* Read one or more characters (no quotes) *)
@@ -160,22 +158,24 @@ module Make (C : Connection) = struct
 	    else inner (f state (String.get str idx)) (idx + 1)
 	in inner state 0
 	
-    let is_alphanum c =
-	let c = Char.code c
+    let is_valid_char ch =
+	let c = Char.code ch
 	in 
 	    (65 <= c && c <= 90) (* Uppercase letter *)
 	    || (97 <= c && c <= 122) (* Lowercase letter *)
 	    || (48 <= c && c <= 57) (* Number *)
+	    || ch = '_'
 	 
-    let string_is_alphanum s =
+    let string_no_invalid_chars s =
 	let rec inner s idx =
 	    if String.length s == idx then true
-	    else if not (is_alphanum (String.get s idx)) then false
+	    else if not (is_valid_char (String.get s idx)) then false
 	    else inner s (idx + 1)
 	in inner s 0
 
     let safely_quote_identifier ident =
-	if string_is_alphanum ident && (not (Keywords.is_keyword ident))
+	if string_no_invalid_chars ident
+		&& (not (Keywords.is_keyword ident))
 	    then ident
 	    else (* Check for quotes and quotify *)
 	    	(let st = fold_string_left
@@ -565,7 +565,7 @@ module Make (C : Connection) = struct
 		(* parentheses, expr within func
 		Puts parentheses around the expression if needed
 		(see p_soe). *)
-		and p_ewf x f = f ^ wp (p_soe ~indent x)
+		and p_ewf x f = f ^ wp (string_of_expr ~indent x)
 
 		and concat_any_expr xs = 
 		    xs
@@ -581,9 +581,9 @@ module Make (C : Connection) = struct
 
 		(* select within parentheses *)
 		and subselect s =
-		    let w = whitespace_of_indent indent
+		    let w = whitespace_of_indent (indent+1)
 		    in "\n" ^ w ^ "(\n"
-		    ^ to_string_indent ~indent:(indent+1) s
+		    ^ to_string_indent ~indent:(indent+2) s
 		    ^ w ^ ")"
 
 		(* Separator between expression and select
@@ -673,26 +673,30 @@ module Make (C : Connection) = struct
 		    in ouput. This makes the query easier to read for humans,
 		    which are the target species for this library. *)
 		    | And (x1, x2) ->
-			let left = if is_and x1
-			    then string_of_expr ~indent:(indent+1) x1
+			let w = whitespace_of_indent (indent+1)
+
+			and left = if is_and x1
+			    then string_of_expr ~indent:(indent) x1
 			    else p_soe ~indent x1
 
 			and right = if is_and x2
-			    then string_of_expr x2 ~indent:(indent+1)
+			    then string_of_expr x2 ~indent:(indent)
 			    else p_soe ~indent x2
 
-			in left ^ " AND " ^ right
+			in left ^ "\n" ^ w ^ "AND " ^ right
 
 		    | Or (x1, x2) ->
-			let left = if is_or x1 
-			    then string_of_expr ~indent:(indent+1) x1
+			let w = whitespace_of_indent (indent+1)
+
+			and left = if is_or x1 
+			    then string_of_expr ~indent:(indent) x1
 			    else p_soe ~indent x1
 
 			and right = if is_or x2
-			    then string_of_expr ~indent:(indent+1) x2
+			    then string_of_expr ~indent:(indent) x2
 			    else p_soe ~indent x2
 
-			in left ^ " OR " ^ right
+			in left ^ "\n" ^ w ^ "OR " ^ right
 
 		    | In (x1, xs) ->
 			p_soe ~indent x1 ^ " IN " ^ 
@@ -741,12 +745,14 @@ module Make (C : Connection) = struct
 
 	and where_clause_of_optional_expr ~indent opt_expr = 
 	    let w = whitespace_of_indent indent
+	    and wplus = whitespace_of_indent (indent + 1)
 	    in match opt_expr with
 		| None -> ""
-		| Some expr -> "\n" ^ w ^ "WHERE " ^ string_of_expr ~indent expr
+		| Some expr -> "\n" ^ w ^ "WHERE\n" ^ wplus
+		    ^ string_of_expr ~indent expr
 
 	and string_of_target ~indent target =
-	    let w = whitespace_of_indent indent
+	    let w = whitespace_of_indent (indent + 1)
 	    in Array.(
 		map (fun (AnyExpr x) -> string_of_expr ~indent x) target
 		|> to_list
@@ -795,12 +801,12 @@ module Make (C : Connection) = struct
 	    and abbr = match (snd table_name) with
 		| Some abbr -> " " ^ safely_quote_identifier abbr
 		| None -> ""
-	    in let name_part = name ^ " " ^ abbr
+	    in let name_part = name ^ abbr
 	    in "\n" ^ w ^ string_of_direction direction ^ " JOIN " ^ name_part
-		^ " ON " ^ within_paren (string_of_expr ~indent on)
+		^ " ON " ^ string_of_expr ~indent on
 
 	 and string_of_join_list ~indent joins =
-	    String.concat "\n" (List.map (string_of_join ~indent) joins) ^ "\n"
+	    String.concat "\n" (List.map (string_of_join ~indent) joins)
 
 	and string_of_group_by ~indent lst =
 	    let w = whitespace_of_indent indent
@@ -820,13 +826,14 @@ module Make (C : Connection) = struct
 	    in w ^ "SELECT " ^ string_of_distinct ~indent s.distinct
 		^ string_of_target ~indent s.target
 		^ string_of_from ~indent s.from
-		^ string_of_where ~indent s.where
 		^ string_of_join_list ~indent s.join
+		^ string_of_where ~indent s.where
 		^ string_of_group_by ~indent s.group_by
 		^ string_of_having ~indent s.having
 		^ string_of_order_by ~indent s.order_by
 		^ string_of_limit ~indent s.limit
 		^ string_of_offset ~indent s.offset
+		^ "\n"
 
 
 	let expr_of_value : type a. a -> a column -> a expr
@@ -1154,6 +1161,26 @@ module Make (C : Connection) = struct
 	    in if st != Postgresql.Command_ok && st != Postgresql.Tuples_ok
 		then seekwhel_fail res#error
 		else (res, sel.target)
+
+	
+	let any x = [| AnyExpr x |]
+	let col x = Column x
+	let any_col c = c |> col |> any
+	let (@||) xs x = Array.append xs [| AnyExpr x |]
+	let (|||) cs c = Array.append cs (any_col c)
+
+	let (&&||) x1 x2 = And (x1, x2)
+	let (||||) x1 x2 = Or (x1, x2)
+
+	let (=||) x1 x2 = Eq (x1, x2)
+	let (!||) x = Not x
+	let (>||) x1 x2 = GT (x1, x2)
+	let (<||) x1 x2 = LT (x1, x2)
+	let (<>||) x1 x2 = !|| (x1 =|| x2)
+
+	let (+||) x1 x2 = Addi (x1, x2)
+	let (+.||) x1 x2 = Addr (x1, x2)
+
     end
 
     module type WhereQuery = sig
@@ -1297,11 +1324,11 @@ module Make (C : Connection) = struct
 	
 	let column_value_array_of_t t =
 	    Array.map
-		(fun (AnyMapping (col, _, get)) ->
+		(fun (AnyMapping (cl, _, get)) ->
 		    let val_ = get t
-		    in Select.(if Array.mem (quoted_string_of_column col) T.default_columns
-			then ColumnEqDefault (col, Default)
-			else ColumnEqDefault (col, Expr (expr_of_value val_ col))))
+		    in Select.(if Array.mem (quoted_string_of_column cl) T.default_columns
+			then ColumnEqDefault (cl, Default)
+			else ColumnEqDefault (cl, Expr (expr_of_value val_ cl))))
 		T.column_mappings ;;
 
 	let insert ts =
@@ -1310,8 +1337,9 @@ module Make (C : Connection) = struct
 			|> Insert.exec)
 		ts
 	
-	let equal_expr col v =
-	    Select.(Eq (Column col, expr_of_value v col))
+	let equal_expr cl v =
+	    Select.(Eq (Column cl, expr_of_value v cl))
+
 
 	let primary_mappings = 
 	    let lst = match Array.length T.primary_key with

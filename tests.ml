@@ -71,7 +71,7 @@ let rename_table_in_string_test () =
     ])
     
 let rename_table_test () = assert (
-    (Columni "products.stock" <|| "p1")
+    (rename_table (Columni "products.stock") "p1")
 	= Columni "p1.stock")
 
 
@@ -223,8 +223,8 @@ module String_of_expr_test = struct
 	gt >>|| "stock > 5" ;
 	lt >>|| "'def' < \"name\"" ;
 	not_ >>|| "NOT (price = 10.)" ;
-	and_ >>|| "(price = 10.) AND (stock > 5)" ;
-	or_ >>|| "(100 IS NULL) OR (NOT (price = 10.))" ;
+	and_ >>|| "(price = 10.)\n\tAND (stock > 5)" ;
+	or_ >>|| "(100 IS NULL)\n\tOR (NOT (price = 10.))" ;
 	case_single >>|| "CASE WHEN ('def' < \"name\") THEN 20.3 ELSE (|/ 20.3) END" ;
 	case_double >>|| "CASE WHEN (price = 10.) THEN 20.3 WHEN ('def' < \"name\") THEN 20.3 ELSE (|/ 20.3) END" ;
 	greatest_double >>|| "GREATEST(20.3, (|/ 20.3))" ;
@@ -234,7 +234,7 @@ module String_of_expr_test = struct
 
 	root_coalesce >>|| "|/ COALESCE(100, 10)" ;
 	logical >>||
-	    "(price = 10.) AND (stock > 5) AND (price = 10.) AND ((100 IS NULL) OR (100 IS NULL) OR (NOT (price = 10.)))" ;;
+	    "(price = 10.)\n\tAND (stock > 5)\n\tAND (price = 10.)\n\tAND ((100 IS NULL)\n\tOR (100 IS NULL)\n\tOR (NOT (price = 10.)))" ;;
 	     
 end
 
@@ -388,13 +388,28 @@ let string_of_test_file f =
     in really_input_string ch l
 
 
-let select1_query = QPerson.select_q [|AnyExpr (Column Person.name_col)|]
-    |> where (AnyGt (
-	(CharLength 
-	    (Coalesce (
-		Column Person.parent_col,
-		Text ""))),
-	(QPost.select_q [|AnyExpr (Column Post.id_col)|]) ))
+let select1_query = QPerson.select_q (any (col Person.name_col))
+    |> where (AnyGt (CharLength (
+			Coalesce(
+			    Column Person.parent_col,
+			    Text "")),
+		    (QPost.select_q (any (col Post.id_col)))))
+
+let select2_query =
+    Person.(
+	(any_col name_col) ||| parent_col
+	    |> QPerson.select_q
+	    |>
+		(let p = Coalesce(col parent_col, Text "")
+		and n = col name_col
+		in let l = CharLength(Concat(p, n))
+		in
+		    where
+			((l >|| (Int 15))
+			&&|| (Addi(l, CharLength (col Post.content_col))
+			    =|| (Int 33))))
+	    |> join Post.name FullOuter 
+		~on:(col Person.name_col =|| col Post.person_name_col))
 
 
 let run_database_tests () =
@@ -427,7 +442,8 @@ let run_database_tests () =
 	check if they result in the same queries as the files
 	in /tests/* contain. *)
 	let file_with_query = [
-	    ("select", `Select select1_query )
+	    ("select1", `Select select1_query ) ;
+	    ("select2", `Select select2_query )
 	] in List.iter (fun (f, q) ->
 	    let query = string_of_test_file f
 	    in let s = match q with

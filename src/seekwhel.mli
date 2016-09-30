@@ -51,8 +51,6 @@ module Make : functor (C : Connection)
 	| ColumnCustomNull : 'a custom_column -> 'a option column
     
 
-    val ( <|| ): 'a column -> string -> 'a column 
-
     module type Query = sig
 	type t
 	type result
@@ -254,6 +252,25 @@ module Make : functor (C : Connection)
 	val get_first : ('a row_callback -> 'b)
 	    -> result
 	    -> 'b option
+	
+
+	val any : 'a expr -> any_expr array
+	val col : 'a column -> 'a expr
+	val any_col : 'a column -> any_expr array
+	val (@||) : any_expr array -> 'a expr -> any_expr array
+	val (|||) : any_expr array -> 'a column -> any_expr array
+
+	val (&&||) : bool expr -> bool expr -> bool expr
+	val (||||) : bool expr -> bool expr -> bool expr
+
+	val (=||) : 'a expr -> 'a expr -> bool expr
+	val (!||) : bool expr -> bool expr
+	val (>||) : 'a expr -> 'a expr -> bool expr
+	val (<||) : 'a expr -> 'a expr -> bool expr
+	val (<>||) : 'a expr -> 'a expr -> bool expr
+
+	val (+||) : int expr -> int expr -> int expr
+	val (+.||) : float expr -> float expr -> float expr
     end
 
     module Insert : sig

@@ -100,6 +100,8 @@ module Make : functor (C : Connection)
 	    | Sqrtr : float expr -> float expr
 	    | Addi : int expr * int expr -> int expr
 	    | Addr : float expr * float expr -> float expr
+	    | Subtracti : int expr * int expr -> int expr
+	    | Subtractr : float expr * float expr -> float expr
 	    | Multi : int expr * int expr -> int expr
 	    | Multr : float expr * float expr -> float expr
 	    | Divi : int expr * int expr -> int expr

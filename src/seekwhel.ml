@@ -304,6 +304,8 @@ module Make (C : Connection) = struct
 	    | Sqrtr : float expr -> float expr
 	    | Addi : int expr * int expr -> int expr
 	    | Addr : float expr * float expr -> float expr
+	    | Subtracti : int expr * int expr -> int expr
+	    | Subtractr : float expr * float expr -> float expr
 	    | Multi : int expr * int expr -> int expr
 	    | Multr : float expr * float expr -> float expr
 	    | Divi : int expr * int expr -> int expr
@@ -617,6 +619,8 @@ module Make (C : Connection) = struct
 		    | Sqrtr x -> "|/ " ^ p_soe ~indent x
 		    | Addi (x1, x2) -> p_eas x1 x2 " + "
 		    | Addr (x1, x2) -> p_eas x1 x2 " + "
+		    | Subtracti (x1, x2) -> p_eas x1 x2 " - "
+		    | Subtractr (x1, x2) -> p_eas x1 x2 " - "
 		    | Multi (x1, x2) -> p_eas x1 x2 " * "
 		    | Multr (x1, x2) -> p_eas x1 x2 " * "
 		    | Divi (x1, x2) -> p_eas x1 x2 " / "
@@ -1015,6 +1019,8 @@ module Make (C : Connection) = struct
 	    | Sqrtr _ -> tinf ()
 	    | Addi _ -> tini ()
 	    | Addr _ -> tinf ()
+	    | Subtracti _ -> tini ()
+	    | Subtractr _ -> tinf ()
 	    | Multi _ -> tini ()
 	    | Multr _ -> tinf ()
 	    | Divi _ -> tini ()

@@ -147,12 +147,13 @@ module Make : functor (C : Connection)
 	    | Sumi : int expr -> int option expr
 	    | Sumr : float expr -> float option expr
 
-
 	    (* Boolean *)
 	    | IsNull : ('a option) expr -> bool expr
 	    | Eq : 'a expr * 'a expr -> bool expr
 	    | GT : 'a expr * 'a expr -> bool expr
+	    | GTE : 'a expr * 'a expr -> bool expr
 	    | LT : 'a expr * 'a expr -> bool expr
+	    | LTE : 'a expr * 'a expr -> bool expr
 	    | Not : bool expr -> bool expr
 	    | And : bool expr * bool expr -> bool expr
 	    | Or : bool expr * bool expr -> bool expr
@@ -178,15 +179,19 @@ module Make : functor (C : Connection)
 	    | AnyEq2 : 'a expr * 'a expr * t -> bool expr
 	    | AnyEqN : any_expr list * t -> bool expr
 
-	    | AnyGt : 'a expr * t -> bool expr
-	    | AnyLt : 'a expr * t -> bool expr
+	    | AnyGT : 'a expr * t -> bool expr
+	    | AnyGTE : 'a expr * t -> bool expr
+	    | AnyLT : 'a expr * t -> bool expr
+	    | AnyLTE : 'a expr * t -> bool expr
 
 	    | AllEq1 : 'a expr * t -> bool expr
 	    | AllEq2 : 'a expr * 'a expr * t -> bool expr
 	    | AllEqN : any_expr list * t -> bool expr
 
-	    | AllGt : 'a expr * t -> bool expr
-	    | AllLt : 'a expr * t -> bool expr
+	    | AllGT : 'a expr * t -> bool expr
+	    | AllGTE : 'a expr * t -> bool expr
+	    | AllLT : 'a expr * t -> bool expr
+	    | AllLTE : 'a expr * t -> bool expr
 
 	    (* Other *)
 	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
@@ -268,11 +273,15 @@ module Make : functor (C : Connection)
 	val (=||) : 'a expr -> 'a expr -> bool expr
 	val (!||) : bool expr -> bool expr
 	val (>||) : 'a expr -> 'a expr -> bool expr
+	val (>=||) : 'a expr -> 'a expr -> bool expr
 	val (<||) : 'a expr -> 'a expr -> bool expr
+	val (<=||) : 'a expr -> 'a expr -> bool expr
 	val (<>||) : 'a expr -> 'a expr -> bool expr
 
 	val (+||) : int expr -> int expr -> int expr
+	val (-||) : int expr -> int expr -> int expr
 	val (+.||) : float expr -> float expr -> float expr
+	val (-.||) : float expr -> float expr -> float expr
     end
 
     module Insert : sig

@@ -355,7 +355,9 @@ module Make (C : Connection) = struct
 	    | IsNull : ('a option) expr -> bool expr
 	    | Eq : 'a expr * 'a expr -> bool expr
 	    | GT : 'a expr * 'a expr -> bool expr
+	    | GTE : 'a expr * 'a expr -> bool expr
 	    | LT : 'a expr * 'a expr -> bool expr
+	    | LTE : 'a expr * 'a expr -> bool expr
 	    | Not : bool expr -> bool expr
 	    | And : bool expr * bool expr -> bool expr
 	    | Or : bool expr * bool expr -> bool expr
@@ -381,15 +383,19 @@ module Make (C : Connection) = struct
 	    | AnyEq2 : 'a expr * 'a expr * t -> bool expr
 	    | AnyEqN : any_expr list * t -> bool expr
 
-	    | AnyGt : 'a expr * t -> bool expr
-	    | AnyLt : 'a expr * t -> bool expr
+	    | AnyGT : 'a expr * t -> bool expr
+	    | AnyGTE : 'a expr * t -> bool expr
+	    | AnyLT : 'a expr * t -> bool expr
+	    | AnyLTE : 'a expr * t -> bool expr
 
 	    | AllEq1 : 'a expr * t -> bool expr
 	    | AllEq2 : 'a expr * 'a expr * t -> bool expr
 	    | AllEqN : any_expr list * t -> bool expr
 
-	    | AllGt : 'a expr * t -> bool expr
-	    | AllLt : 'a expr * t -> bool expr
+	    | AllGT : 'a expr * t -> bool expr
+	    | AllGTE : 'a expr * t -> bool expr
+	    | AllLT : 'a expr * t -> bool expr
+	    | AllLTE : 'a expr * t -> bool expr
 
 	    (* Other *)
 	    | Coalesce : ('a option) expr * 'a expr -> 'a expr
@@ -670,7 +676,9 @@ module Make (C : Connection) = struct
 		    | IsNull x -> p_soe ~indent x ^ " IS NULL"
 		    | Eq (x1, x2) -> p_eas x1 x2 " = "
 		    | GT (x1, x2) -> p_eas x1 x2 " > "
+		    | GTE (x1, x2) -> p_eas x1 x2 " >= "
 		    | LT (x1, x2) -> p_eas x1 x2 " < "
+		    | LTE (x1, x2) -> p_eas x1 x2 " <= "
 		    | Not x -> "NOT " ^ p_soe ~indent x
 
 		    (* Some special checks to reduce parentheses
@@ -729,8 +737,10 @@ module Make (C : Connection) = struct
 		    | AnyEqN (lst, select) ->
 			concat_any_expr lst ^ " = ANY" ^ subselect select
 
-		    | AnyGt (x, select) -> sep_between_x_sel x " > ANY" select
-		    | AnyLt (x, select) -> sep_between_x_sel x " < ANY" select
+		    | AnyGT (x, select) -> sep_between_x_sel x " > ANY" select
+		    | AnyGTE (x, select) -> sep_between_x_sel x " >= ANY" select
+		    | AnyLT (x, select) -> sep_between_x_sel x " < ANY" select
+		    | AnyLTE (x, select) -> sep_between_x_sel x " <= ANY" select
 
 		    | AllEq1 (x, select) ->
 			sep_between_x_sel x " = ALL" select
@@ -739,8 +749,10 @@ module Make (C : Connection) = struct
 		    | AllEqN (lst, select) ->
 			concat_any_expr lst ^ " = ALL" ^ subselect select
 
-		    | AllGt (x, select) -> sep_between_x_sel x " > ALL" select
-		    | AllLt (x, select) -> sep_between_x_sel x " < ALL" select
+		    | AllGT (x, select) -> sep_between_x_sel x " > ALL" select
+		    | AllGTE (x, select) -> sep_between_x_sel x " >= ALL" select
+		    | AllLT (x, select) -> sep_between_x_sel x " < ALL" select
+		    | AllLTE (x, select) -> sep_between_x_sel x " <= ALL" select
 		    
 		    | Casti expr -> "CAST(" ^ p_soe ~indent expr ^ " AS INT)"
 		    | Castr expr -> "CAST(" ^ p_soe ~indent expr ^ " AS DOUBLE PRECISION)"
@@ -1066,7 +1078,9 @@ module Make (C : Connection) = struct
 	    | IsNull _ -> tinb ()
 	    | Eq _ -> tinb ()
 	    | GT _ -> tinb ()
+	    | GTE _ -> tinb ()
 	    | LT _ -> tinb ()
+	    | LTE _ -> tinb ()
 	    | Not _ -> tinb ()
 	    | And _ -> tinb ()
 	    | Or _ -> tinb ()
@@ -1087,13 +1101,17 @@ module Make (C : Connection) = struct
 	    | AnyEq1 _ -> tinb ()
 	    | AnyEq2 _ -> tinb ()
 	    | AnyEqN _ -> tinb ()
-	    | AnyGt _ -> tinb ()
-	    | AnyLt _ -> tinb ()
+	    | AnyGT _ -> tinb ()
+	    | AnyGTE _ -> tinb ()
+	    | AnyLT _ -> tinb ()
+	    | AnyLTE _ -> tinb ()
 	    | AllEq1 _ -> tinb ()
 	    | AllEq2 _ -> tinb ()
 	    | AllEqN _ -> tinb ()
-	    | AllGt _ -> tinb ()
-	    | AllLt _ -> tinb ()
+	    | AllGT _ -> tinb ()
+	    | AllGTE _ -> tinb ()
+	    | AllLT _ -> tinb ()
+	    | AllLTE _ -> tinb ()
 
 	    | Casti x -> tini ()
 	    | Castr x -> tinf ()
@@ -1181,11 +1199,15 @@ module Make (C : Connection) = struct
 	let (=||) x1 x2 = Eq (x1, x2)
 	let (!||) x = Not x
 	let (>||) x1 x2 = GT (x1, x2)
+	let (>=||) x1 x2 = GTE (x1, x2)
 	let (<||) x1 x2 = LT (x1, x2)
+	let (<=||) x1 x2 = LTE (x1, x2)
 	let (<>||) x1 x2 = !|| (x1 =|| x2)
 
 	let (+||) x1 x2 = Addi (x1, x2)
+	let (-||) x1 x2 = Subtracti (x1, x2)
 	let (+.||) x1 x2 = Addr (x1, x2)
+	let (-.||) x1 x2 = Subtractr (x1, x2)
 
     end
 

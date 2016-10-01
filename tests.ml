@@ -389,7 +389,7 @@ let string_of_test_file f =
 
 
 let select1_query = QPerson.select_q (any (col Person.name_col))
-    |> where (AnyGt (CharLength (
+    |> where (AnyGT (CharLength (
 			Coalesce(
 			    Column Person.parent_col,
 			    Text "")),

@@ -264,13 +264,15 @@ let pure_tests =
 	("string_of_order_by_list", string_of_order_by_list_test)
     ] ;;
 
-let run_pure_tests () = List.fold_left
-	    (fun idx (name, f) ->
-		print_endline ((string_of_int idx) ^ " " ^ name);
-		f () ;
-		idx + 1)
-	    1
-	    pure_tests ;;
+let run_pure_tests () =
+	print_endline "Starting pure tests...";
+	List.fold_left
+		(fun idx (name, f) ->
+			print_endline ((string_of_int idx) ^ " " ^ name);
+			f () ;
+			idx + 1)
+		1
+		pure_tests ;;
 
 (*
     The following tests actually use the database.
@@ -395,20 +397,20 @@ module QPost = Queryable(Post)
 
 
 let string_of_test_file f =
-    let path = "./tests/" ^ f ^ ".sql"
+    let path = "maintenance/tests/" ^ f ^ ".sql"
     in let ch = open_in path
     in let l = in_channel_length ch
     in really_input_string ch l
 
 
-let select1_query = QPerson.select_q (any (col Person.name_col))
+let select_query1 = QPerson.select_q (any (col Person.name_col))
     |> where (AnyGT (CharLength (
 			Coalesce(
 			    Column Person.parent_col,
 			    Text "")),
 		    (QPost.select_q (any (col Post.id_col)))))
 
-let select2_query =
+let select_query2 =
     Person.(
 	(any_col name_col) ||| parent_col
 	    |> QPerson.select_q
@@ -426,6 +428,7 @@ let select2_query =
 
 
 let run_database_tests () =
+	print_endline "Starting database tests..." ;
     (* Clean previous database operations *)
     QPerson.delete_q
 	|> Delete.exec ;
@@ -455,8 +458,8 @@ let run_database_tests () =
 	check if they result in the same queries as the files
 	in /tests/* contain. *)
 	let file_with_query = [
-	    ("select1", `Select select1_query ) ;
-	    ("select2", `Select select2_query )
+	    ("select1", `Select select_query1 ) ;
+	    ("select2", `Select select_query2 )
 	] in List.iter (fun (f, q) ->
 	    let query = string_of_test_file f
 	    in let s = match q with
@@ -473,9 +476,33 @@ let run_database_tests () =
 	Seekwhel_test.conn#finish 
     
 
+(* Timing functions, useful for benchmarking *)
+
+let time_taken f =
+	let start = Sys.time ()
+	in (f () ; Sys.time () -. start)
+
+let benchmark () =
+	print_endline "Starting benchmark..." ;
+	let s1_time = ref 0.0
+	and s2_time = ref 0.0
+	in let rec aux n =
+		if n == 100000 then ()
+		else (
+			s1_time :=  !s1_time +.
+				time_taken (fun () -> Select.to_string select_query1) ;
+			s2_time := !s2_time +.
+				time_taken (fun () -> Select.to_string select_query2) ;
+			aux (n + 1))
+	in (aux 0 ;
+	print_endline ("Time taken for select_query1: " ^ string_of_float !s1_time ^ " s") ;
+	print_endline ("Time taken for select_query2: " ^ string_of_float !s2_time ^ " s")) 
+
+	
 let _ = match Sys.argv with
     | [|_ ; "pure" |] -> ignore (run_pure_tests ())
     | [|_ ; "database" |] -> ignore (run_database_tests ())
+    | [|_ ; "benchmark" |] -> ignore (benchmark ())
     | _ -> print_endline "Please supply a command (either 'pure' or 'database')"
 
     

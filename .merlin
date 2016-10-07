@@ -1,3 +1,4 @@
 PKG postgresql calendar
 S src
-B build
+B _build/
+B _build/src/

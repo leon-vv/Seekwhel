@@ -1,4 +1,4 @@
-build
+_build
 *.cmx
 *.cmxa
 *.cmi

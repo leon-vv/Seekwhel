@@ -13,21 +13,11 @@
 #mod_use "src/seekwhelInsert.ml";;
 
 #mod_use "src/seekwhel.ml";;
+#mod_use "maintenance/queries.ml"
 
 open CalendarLib
 
-let conn = try new Postgresql.connection
-    ~host:"127.0.0.1"
-    ~dbname:"seekwhel_test"
-    ~user:"seekwhel_test"
-    ~password:"seekwhel_test" ()
-    with Postgresql.Error e -> failwith (Postgresql.string_of_error e)
-
-module Seekwhel_test : Seekwhel.Connection = struct
-    let conn = conn
-end
-
-module S = Seekwhel.Make(Seekwhel_test)
+open Queries
 open S
 open S.Select
 module SI = SeekwhelInner
@@ -134,7 +124,7 @@ let quote_identifier_test () =
     ]
     
 let string_of_order_by_list_test () =
-    test1 (string_of_order_by ~indent:0)
+    test1 (S.Select.string_of_order_by ~indent:0)
 	Select.([
 	    ([], "") ;
 	    ([(AnyExpr (Column (SC.Columni "stock")), ASC)], "\nORDER BY stock ASC") ;
@@ -303,128 +293,11 @@ let run_pure_tests () =
     - Update some persons and some posts.
 *)
 
-
-module Person = struct
-    let name = "person"
-
-    type t = {
-		name: string ;
-		parent : string option
-    }
-    
-    let empty = {
-		name = "" ;
-		parent = None
-    }
-
-    let name_s = "name"
-    let parent_s = "parent"
-    
-    let name_col = SC.Columnt name_s
-    let parent_col = SC.ColumntNull parent_s
-
-    let primary_key = [| name_s |]
-
-    let default_columns = [||]
-
-    let column_mappings = [|
-		SC.AnyMapping (
-			name_col,
-			(fun p n -> {p with name = n }),
-			(fun p -> p.name)) ;
-		SC.AnyMapping (
-			parent_col,
-			(fun p n -> {p with parent = n }),
-			(fun p -> p.parent) )
-    |]
-end
-
-module Post = struct
-    let name = "post"
-
-    type t = {
-    	person_name : string ;
-    	date : Calendar.t ;
-    	content : string ;
-    	id : int
-    }
-
-    let empty = {
-		person_name = "" ;
-		date = Calendar.now () ;
-		content = "" ;
-		id = 0
-    }
-
-    let person_name_s = "person_name"
-    let date_s = "date"
-    let content_s = "content"
-    let id_s = "id"
-
-    let person_name_col = SC.Columnt person_name_s
-    let date_col = SC.Columnd date_s
-    let content_col = SC.Columnt content_s
-    let id_col = SC.Columni id_s
-
-    let primary_key = [| id_s |]
-
-    let default_columns = [| id_s |]
-
-    let column_mappings = [|
-		SC.AnyMapping (
-			person_name_col,
-			(fun p n -> {p with person_name = n}),
-			(fun p -> p.person_name)) ;
-		SC.AnyMapping (
-			date_col,
-			(fun p d -> {p with date = d}),
-			(fun p -> p.date)) ;
-		SC.AnyMapping (
-			content_col,
-			(fun p c -> {p with content = c}),
-			(fun p -> p.content)) ;
-		SC.AnyMapping (
-			id_col,
-			(fun p i -> {p with id = i}),
-			(fun p -> p.id ))
-    |]
-
-end
-
-
-module QPerson = Queryable(Person)
-module QPost = Queryable(Post)
-
-
 let string_of_test_file f =
     let path = "maintenance/tests/" ^ f ^ ".sql"
     in let ch = open_in path
     in let l = in_channel_length ch
     in really_input_string ch l
-
-
-let select_query1 = QPerson.select_q (any (col Person.name_col))
-    |> where (AnyGT (CharLength (
-			Coalesce(
-			    Column Person.parent_col,
-			    Text "")),
-		    (QPost.select_q (any (col Post.id_col)))))
-
-let select_query2 =
-    Person.(
-	(any_col name_col) ||| parent_col
-	    |> QPerson.select_q
-	    |>
-		(let p = Coalesce(col parent_col, Text "")
-		and n = col name_col
-		in let l = CharLength(Concat(p, n))
-		in
-		    where
-			((l >|| (Int 15))
-			&&|| (Addi(l, CharLength (col Post.content_col))
-			    =|| (Int 33))))
-	    |> join Post.name FullOuter 
-		~on:(col Person.name_col =|| col Post.person_name_col))
 
 
 let run_database_tests () =
@@ -475,34 +348,10 @@ let run_database_tests () =
 
 	Seekwhel_test.conn#finish 
     
-
-(* Timing functions, useful for benchmarking *)
-
-let time_taken f =
-	let start = Sys.time ()
-	in (f () ; Sys.time () -. start)
-
-let benchmark () =
-	print_endline "Starting benchmark..." ;
-	let s1_time = ref 0.0
-	and s2_time = ref 0.0
-	in let rec aux n =
-		if n == 100000 then ()
-		else (
-			s1_time :=  !s1_time +.
-				time_taken (fun () -> Select.to_string select_query1) ;
-			s2_time := !s2_time +.
-				time_taken (fun () -> Select.to_string select_query2) ;
-			aux (n + 1))
-	in (aux 0 ;
-	print_endline ("Time taken for select_query1: " ^ string_of_float !s1_time ^ " s") ;
-	print_endline ("Time taken for select_query2: " ^ string_of_float !s2_time ^ " s")) 
-
 	
 let _ = match Sys.argv with
     | [|_ ; "pure" |] -> ignore (run_pure_tests ())
     | [|_ ; "database" |] -> ignore (run_database_tests ())
-    | [|_ ; "benchmark" |] -> ignore (benchmark ())
     | _ -> print_endline "Please supply a command (either 'pure' or 'database')"
 
     

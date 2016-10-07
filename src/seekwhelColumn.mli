@@ -38,4 +38,3 @@ type ('t, 'a) column_mapping =
 type 't any_column_mapping =
 	| AnyMapping : ('t, 'a) column_mapping -> 't any_column_mapping
 
-

@@ -20,7 +20,7 @@ module type Connection = SeekwhelConnection.S
 
 module Make : functor (C : Connection) -> sig
 
-    module Column : module type of SeekwhelColumn
+	module Column = SeekwhelColumn
     module Select : module type of SeekwhelSelect.Make(C)
     module Update : module type of SeekwhelUpdate.Make(C)
     module Insert : module type of SeekwhelInsert.Make(C)

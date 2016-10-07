@@ -1,0 +1,5 @@
+true: package(calendar)
+true: package(postgresql)
+"src": traverse
+true: thread
+true: optimize(3)

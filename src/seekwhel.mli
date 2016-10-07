@@ -27,34 +27,34 @@ module Make : functor (C : Connection) -> sig
     module Delete : module type of SeekwhelDelete.Make(C)
 
     module type Table = sig
-	val name : string 
-	type t
-	
-	val empty : t
-	val primary_key : string array
+		val name : string 
+		type t
+		
+		val empty : t
+		val primary_key : string array
 
-	val default_columns : string array
+		val default_columns : string array
 
-	val column_mappings : t Column.any_column_mapping array
+		val column_mappings : t Column.any_column_mapping array
     end
 
     module Queryable (T : Table) : sig
-	val select_q : Select.target -> Select.t
-	val insert_q : Insert.target -> Insert.t
-	val update_q : Update.target -> Update.t
-	val delete_q : Delete.t
+		val select_q : Select.target -> Select.t
+		val insert_q : Insert.target -> Insert.t
+		val update_q : Update.target -> Update.t
+		val delete_q : Delete.t
 
-	val select : bool Select.expr -> T.t array 
-	val insert : T.t array -> unit
-	val update : T.t array -> unit
-	val delete : T.t array -> unit
+		val select : bool Select.expr -> T.t array 
+		val insert : T.t array -> unit
+		val update : T.t array -> unit
+		val delete : T.t array -> unit
 
-	(* Non-essential helper stuff *)
+		(* Non-essential helper stuff *)
 
-	val select_first : bool Select.expr -> T.t option
+		val select_first : bool Select.expr -> T.t option
 
-	(* Will throw an error when more rows are returned *)
-	val select_unique : bool Select.expr -> T.t option
+		(* Will throw an error when more rows are returned *)
+		val select_unique : bool Select.expr -> T.t option
     end
 
     module Join2(T1 : Table)(T2 : Table) : sig

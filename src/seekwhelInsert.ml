@@ -1,5 +1,5 @@
 
-module Make(C : module type of SeekwhelConnection) = struct
+module Make(C : SeekwhelConnection.S) = struct
 
 	module SS = SeekwhelSelect.Make(C)
 	module SC = SeekwhelColumn
@@ -26,7 +26,7 @@ module Make(C : module type of SeekwhelConnection) = struct
 			" VALUES ( " ^ values_part ^ " ) "
 		in aux 0
 
-	let exec ins = SI.exec_ignore C.c (to_string ins)
+	let exec ins = SI.exec_ignore C.conn (to_string ins)
 
 end
 

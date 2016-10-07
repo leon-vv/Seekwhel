@@ -1,6 +1,17 @@
 #require "postgresql";;
 #require "calendar";;
-#mod_use "src/keywords.ml";;
+
+#mod_use "src/seekwhelInner.ml";;
+#mod_use "src/seekwhelConnection.ml";;
+#mod_use "src/seekwhelInner.ml";;
+#mod_use "src/seekwhelKeywords.ml";;
+#mod_use "src/seekwhelColumn.ml";;
+
+#mod_use "src/seekwhelSelect.ml";;
+#mod_use "src/seekwhelUpdate.ml";;
+#mod_use "src/seekwhelDelete.ml";;
+#mod_use "src/seekwhelInsert.ml";;
+
 #mod_use "src/seekwhel.ml";;
 
 open CalendarLib
@@ -10,15 +21,17 @@ let conn = try new Postgresql.connection
     ~dbname:"seekwhel_test"
     ~user:"seekwhel_test"
     ~password:"seekwhel_test" ()
-with Postgresql.Error e -> failwith (Postgresql.string_of_error e)
+    with Postgresql.Error e -> failwith (Postgresql.string_of_error e)
 
 module Seekwhel_test : Seekwhel.Connection = struct
-    let connection = conn
+    let conn = conn
 end
 
 module S = Seekwhel.Make(Seekwhel_test)
 open S
 open S.Select
+module SI = SeekwhelInner
+module SC = SeekwhelColumn
 
 (* Begin helpful functions for testing *)
 
@@ -46,24 +59,24 @@ let rec expect_exception f = function
 (* End helpful functions for testing *)
 
 let sub_between_test () =
-    assert (sub_between "" 0 0 = "") ;
-    assert (sub_between "a" 0 0 = "") ;
-    assert (sub_between "ab" 0 0 = "") ;
-    assert (sub_between "ab" 0 1 = "") ;
-    assert (sub_between "abc" 0 1 = "") ;
-    assert (sub_between "abc" 0 2 = "b") ;
-    assert (sub_between "abcd" 1 3 = "c") ;
-    assert (sub_between "abcdefg" 1 5 = "cde") ;
-    assert (sub_between "abc" 0 3 = "bc") ;
-    assert (sub_between "abc" (-1) 3 = "abc")
+    assert (SI.sub_between "" 0 0 = "") ;
+    assert (SI.sub_between "a" 0 0 = "") ;
+    assert (SI.sub_between "ab" 0 0 = "") ;
+    assert (SI.sub_between "ab" 0 1 = "") ;
+    assert (SI.sub_between "abc" 0 1 = "") ;
+    assert (SI.sub_between "abc" 0 2 = "b") ;
+    assert (SI.sub_between "abcd" 1 3 = "c") ;
+    assert (SI.sub_between "abcdefg" 1 5 = "cde") ;
+    assert (SI.sub_between "abc" 0 3 = "bc") ;
+    assert (SI.sub_between "abc" (-1) 3 = "abc")
     
 
 let rename_table_in_string_test () =
     let flip f = (fun x y -> f y x)
     in (expect_exception
-	((flip rename_table_in_string) "table")
+	((flip SC.rename_table_in_string) "table")
 	[""; "a"; "..."; "a.b.c.d"] ;
-    test2 rename_table_in_string [
+    test2 SC.rename_table_in_string [
 	("a.b", "def", "def.b") ;
 	("a.b.c", "d", "a.d.c") ;
 	("..", "a", ".a.") ;
@@ -71,12 +84,12 @@ let rename_table_in_string_test () =
     ])
     
 let rename_table_test () = assert (
-    (rename_table (Columni "products.stock") "p1")
-	= Columni "p1.stock")
+    (SC.rename_table (SC.Columni "products.stock") "p1")
+	= SC.Columni "p1.stock")
 
 
 let split_string_around_dots_test () =
-    test1 split_string_around_dots
+    test1 SI.split_string_around_dots
 	[	("", [""]) ;
 	    ("adf", ["adf"]) ;
 	    ("#$%^", ["#$%^"]) ;
@@ -91,10 +104,10 @@ let split_string_around_dots_test () =
 
  
 let quote_identifier_test () =
-    expect_exception safely_quote_identifier
+    expect_exception SC.safely_quote_identifier
 	["asdf\""; "\"sfd"; "\""; "aasf\"asdfasdf";
 	"\"\"a"; "a\"\""; "\"\"asdfad\"\""] ;
-    test1 safely_quote_identifier [
+    test1 SC.safely_quote_identifier [
 	("", "");
 	("a", "\"a\""); (* "a" is a keyword *)
 	("b", "b");
@@ -106,10 +119,10 @@ let quote_identifier_test () =
     ]
 	
 let quote_identifier_test () =
-    expect_exception safely_quote_identifier
+    expect_exception SC.safely_quote_identifier
 	["asdf\""; "\"sfd"; "\""; "aasf\"asdfasdf";
 	"\"\"a"; "a\"\""; "\"\"asdfad\"\""] ;
-    test1 safely_quote_identifier [
+    test1 SC.safely_quote_identifier [
 	("", "");
 	("a", "\"a\""); (* "a" is a keyword *)
 	("b", "b");
@@ -124,16 +137,16 @@ let string_of_order_by_list_test () =
     test1 (string_of_order_by ~indent:0)
 	Select.([
 	    ([], "") ;
-	    ([(AnyExpr (Column (Columni "stock")), ASC)], "\nORDER BY stock ASC") ;
-	    ([(AnyExpr (Column (Columni "stock")), ASC);
+	    ([(AnyExpr (Column (SC.Columni "stock")), ASC)], "\nORDER BY stock ASC") ;
+	    ([(AnyExpr (Column (SC.Columni "stock")), ASC);
 	    (AnyExpr (Addi ((Int 10), (Int 30))), Select.DESC)],
 		"\nORDER BY stock ASC, (10 + 30) DESC")
 	])
 
 let safely_quote_column_test () =
-    expect_exception safely_quote_column
+    expect_exception SC.safely_quote_column
 	["\""; "adc.d\"d"; "a\""] ;
-    test1 safely_quote_column
+    test1 SC.safely_quote_column
 	[("kl.h.f", "kl.h.f");
 	("..", "..");
 	("\"a\".b", "\"a\".b");
@@ -145,10 +158,10 @@ let safely_quote_column_test () =
 module String_of_expr_test = struct
 
     (* Column *)
-    let price_col = Columnr "price"
-    let stock_col = Columni "stock"
-    let name_col = Columnt "name"
-    let date_col = Columnd "date"
+    let price_col = SC.Columnr "price"
+    let stock_col = SC.Columni "stock"
+    let name_col = SC.Columnt "name"
+    let date_col = SC.Columnd "date"
 
     let date = Calendar.lmake ~year:2016 ~month:10 ~day:10 ()
 
@@ -293,34 +306,34 @@ module Person = struct
     let name = "person"
 
     type t = {
-	name: string ;
-	parent : string option
+		name: string ;
+		parent : string option
     }
     
     let empty = {
-	name = "" ;
-	parent = None
+		name = "" ;
+		parent = None
     }
 
     let name_s = "name"
     let parent_s = "parent"
     
-    let name_col = Columnt name_s
-    let parent_col = ColumntNull parent_s
+    let name_col = SC.Columnt name_s
+    let parent_col = SC.ColumntNull parent_s
 
     let primary_key = [| name_s |]
 
     let default_columns = [||]
 
     let column_mappings = [|
-	AnyMapping (
-	    name_col,
-	    (fun p n -> {p with name = n }),
-	    (fun p -> p.name)) ;
-    	AnyMapping (
-	    parent_col,
-	    (fun p n -> {p with parent = n }),
-	    (fun p -> p.parent) )
+		SC.AnyMapping (
+			name_col,
+			(fun p n -> {p with name = n }),
+			(fun p -> p.name)) ;
+		SC.AnyMapping (
+			parent_col,
+			(fun p n -> {p with parent = n }),
+			(fun p -> p.parent) )
     |]
 end
 
@@ -335,10 +348,10 @@ module Post = struct
     }
 
     let empty = {
-	person_name = "" ;
-	date = Calendar.now () ;
-	content = "" ;
-	id = 0
+		person_name = "" ;
+		date = Calendar.now () ;
+		content = "" ;
+		id = 0
     }
 
     let person_name_s = "person_name"
@@ -346,32 +359,32 @@ module Post = struct
     let content_s = "content"
     let id_s = "id"
 
-    let person_name_col = Columnt person_name_s
-    let date_col = Columnd date_s
-    let content_col = Columnt content_s
-    let id_col = Columni id_s
+    let person_name_col = SC.Columnt person_name_s
+    let date_col = SC.Columnd date_s
+    let content_col = SC.Columnt content_s
+    let id_col = SC.Columni id_s
 
     let primary_key = [| id_s |]
 
     let default_columns = [| id_s |]
 
     let column_mappings = [|
-	AnyMapping (
-	    person_name_col,
-	    (fun p n -> {p with person_name = n}),
-	    (fun p -> p.person_name)) ;
-	AnyMapping (
-	    date_col,
-	    (fun p d -> {p with date = d}),
-	    (fun p -> p.date)) ;
-	AnyMapping (
-	    content_col,
-	    (fun p c -> {p with content = c}),
-	    (fun p -> p.content)) ;
-	AnyMapping (
-	    id_col,
-	    (fun p i -> {p with id = i}),
-	    (fun p -> p.id ))
+		SC.AnyMapping (
+			person_name_col,
+			(fun p n -> {p with person_name = n}),
+			(fun p -> p.person_name)) ;
+		SC.AnyMapping (
+			date_col,
+			(fun p d -> {p with date = d}),
+			(fun p -> p.date)) ;
+		SC.AnyMapping (
+			content_col,
+			(fun p c -> {p with content = c}),
+			(fun p -> p.content)) ;
+		SC.AnyMapping (
+			id_col,
+			(fun p i -> {p with id = i}),
+			(fun p -> p.id ))
     |]
 
 end
@@ -421,12 +434,12 @@ let run_database_tests () =
  
     (* Do some tests of the high-level Queryable operations *)
     let catarina = Person.{
-	name = "Catarina" ;
-	parent = None
+		name = "Catarina" ;
+		parent = None
     }
     and jhonny = Person.{
-	name = "Jhonny" ;
-	parent = Some "Jhonny"
+		name = "Jhonny" ;
+		parent = Some "Jhonny"
     }
     in
 	QPerson.insert [| catarina ; jhonny |] ;
@@ -434,9 +447,9 @@ let run_database_tests () =
 	QPerson.update [| { catarina with Person.parent = Some "Jhonny" } |] ;
 
 	let jhonny_option = QPerson.select_unique (Eq (Column Person.name_col, Text "Jhonny"))
-	in (match jhonny_option with
-		| None -> failwith "Jhonny not found"
-		| Some j -> assert (j = jhonny)) ;
+		in (match jhonny_option with
+			| None -> failwith "Jhonny not found"
+			| Some j -> assert (j = jhonny)) ;
 
 	(* Now we'll produce some complicated queries and
 	check if they result in the same queries as the files
@@ -457,7 +470,7 @@ let run_database_tests () =
 		    print_endline ("\nQuery expected: \n\n" ^ query)))
 	    file_with_query ;
 
-	Seekwhel_test.connection#finish 
+	Seekwhel_test.conn#finish 
     
 
 let _ = match Sys.argv with

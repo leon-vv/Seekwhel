@@ -1,7 +1,7 @@
 open SeekwhelColumn
 open CalendarLib
 
-module Make : functor (C : module type of SeekwhelConnection) -> sig
+module Make : functor (C : SeekwhelConnection.S) -> sig
 
 	type 'a custom_expr = {
 		value : 'a ;
@@ -216,8 +216,6 @@ module Make : functor (C : module type of SeekwhelConnection) -> sig
 	val get_unique : ('a row_callback -> 'b)
 		-> result
 		-> 'b option
-
-
 
 
 	val any : 'a expr -> any_expr array

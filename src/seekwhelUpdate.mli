@@ -1,5 +1,5 @@
 
-module Make : functor(C : module type of SeekwhelConnection)
+module Make : functor(C : SeekwhelConnection.S)
 -> sig
 
 	type t

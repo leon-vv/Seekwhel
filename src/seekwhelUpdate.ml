@@ -1,5 +1,5 @@
 
-module Make(C : module type of SeekwhelConnection) = struct
+module Make(C : SeekwhelConnection.S) = struct
 
 	module SS = SeekwhelSelect.Make(C)
 	module SC = SeekwhelColumn
@@ -29,6 +29,6 @@ module Make(C : module type of SeekwhelConnection) = struct
 		^ SS.where_clause_of_optional_expr ~indent where
 		in aux 0
 
-	let exec upd = SI.exec_ignore C.c (to_string upd)
+	let exec upd = SI.exec_ignore C.conn (to_string upd)
 end
 

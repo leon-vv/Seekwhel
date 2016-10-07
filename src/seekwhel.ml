@@ -18,7 +18,9 @@
 
 open CalendarLib 
 
-module Make (C : module type of SeekwhelConnection) = struct
+module type Connection = SeekwhelConnection.S
+
+module Make (C : SeekwhelConnection.S) = struct
 
     module Column = SeekwhelColumn
     open Column

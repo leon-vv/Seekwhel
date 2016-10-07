@@ -16,7 +16,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-module Make : functor (C : module type of SeekwhelConnection) -> sig
+module type Connection = SeekwhelConnection.S
+
+module Make : functor (C : Connection) -> sig
 
     module Column : module type of SeekwhelColumn
     module Select : module type of SeekwhelSelect.Make(C)

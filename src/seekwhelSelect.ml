@@ -3,7 +3,7 @@ open SeekwhelColumn
 
 module SI = SeekwhelInner
 
-module Make (C : module type of SeekwhelConnection) = struct
+module Make (C : SeekwhelConnection.S) = struct
 	(* Cross join is equal to INNER JOIN ON (TRUE) *)
 
 	type join_direction =
@@ -354,7 +354,7 @@ module Make (C : module type of SeekwhelConnection) = struct
 		in let sep_between_x_sel x sep sel =
 			p_soe x ~indent ^ sep ^ subselect sel
 
-		and escaped_string s = "'" ^ (C.c#escape_string s) ^ "'"
+		and escaped_string s = "'" ^ (C.conn#escape_string s) ^ "'"
 
 		in match expr with
 			| Column c -> quoted_string_of_column c
@@ -927,7 +927,7 @@ module Make (C : module type of SeekwhelConnection) = struct
 		resulted in more than one row" 
 
 	let exec sel =
-		let res = C.c#exec (to_string sel)
+		let res = C.conn#exec (to_string sel)
 		in let st = res#status
 		in if st != Postgresql.Command_ok && st != Postgresql.Tuples_ok
 		then SI.seekwhel_fail res#error

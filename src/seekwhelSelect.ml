@@ -639,9 +639,10 @@ module Make (C : SeekwhelConnection.S) = struct
 
 	type column_and_value =
 		| Default : 'a column -> column_and_value
-		| Null : 'a option column -> column_and_value
 		| ColumnValue : 'a column * 'a expr -> column_and_value
 		| OptColumnValue : 'a option column * 'a expr -> column_and_value
+
+	let null c = ColumnValue (c, Null)
 
 	let string_of_column_value (type a) (c:a column) (v:a) ~indent : string =
 		let maybe_null f v = match v with
@@ -667,7 +668,6 @@ module Make (C : SeekwhelConnection.S) = struct
 		let qsoc = quoted_string_of_column
 		in match col_and_val with
 			| Default c -> (qsoc c, "DEFAULT")
-			| Null c -> (qsoc c, "NULL")
 			| ColumnValue (c, e) -> (qsoc c, string_of_expr e)
 			| OptColumnValue (c, e) -> (qsoc c, string_of_expr e)
 	

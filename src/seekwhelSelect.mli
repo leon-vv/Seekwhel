@@ -165,9 +165,10 @@ module Make : functor (C : SeekwhelConnection.S) -> sig
 
 	type column_and_value =
 		| Default : 'a column -> column_and_value
-		| Null : 'a option column -> column_and_value
 		| ColumnValue : 'a column * 'a expr -> column_and_value
 		| OptColumnValue : 'a option column * 'a expr -> column_and_value
+	
+	val null : 'a option column -> column_and_value
 
 	val stringify_column_and_opt_expr_array
 		: indent:int -> column_and_value array -> (string * string) list

@@ -5,7 +5,17 @@ let conn = try new Postgresql.connection
     ~dbname:"seekwhel_test"
     ~user:"seekwhel_test"
     ~password:"seekwhel_test" ()
-    with Postgresql.Error e -> failwith (Postgresql.string_of_error e)
+    with Postgresql.Error e -> (
+		print_endline "Postgresql failed to conenct to database seekwhel_test" ; 
+		print_endline "These tests depend on a database: \n
+			host: 127.0.0.1 (localhost) \n
+			database name: seekwhel_test \n
+			username: seekwhel_test \n
+			password: seekwhel_test \n\n
+see the end of ./maintenance/tests.ml for information about which tables need to be created\n\n
+the error returned by Postgresql is as follows:\n\n" ;
+		failwith (Postgresql.string_of_error e))
+
 
 module Seekwhel_test : Seekwhel.Connection = struct
     let conn = conn

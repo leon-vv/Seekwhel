@@ -94,35 +94,21 @@ let split_string_around_dots_test () =
 
  
 let quote_identifier_test () =
-    expect_exception SC.safely_quote_identifier
-	["asdf\""; "\"sfd"; "\""; "aasf\"asdfasdf";
-	"\"\"a"; "a\"\""; "\"\"asdfad\"\""] ;
-    test1 SC.safely_quote_identifier [
-	("", "");
-	("a", "\"a\""); (* "a" is a keyword *)
-	("b", "b");
-	("abc", "abc");
-	("\"\"", "\"\"");
-	("\"a\"", "\"a\"");
-	("select", "\"select\"");
-	("array_MAX_cardinality", "\"array_MAX_cardinality\"")
+    expect_exception
+		SC.quoted_string_of_identifier
+		["asdf\""; "\"sfd"; "\""; "aasf\"asdfasdf";
+		"\"\"a"; "a\"\""; "\"\"asdfad\"\""] ;
+    test1 SC.quoted_string_of_identifier [
+		("", "");
+		("a", "\"a\""); (* "a" is a keyword *)
+		("b", "b");
+		("abc", "abc");
+		("\"\"", "\"\"");
+		("\"a\"", "\"a\"");
+		("select", "\"select\"");
+		("array_MAX_cardinality", "\"array_MAX_cardinality\"")
     ]
 	
-let quote_identifier_test () =
-    expect_exception SC.safely_quote_identifier
-	["asdf\""; "\"sfd"; "\""; "aasf\"asdfasdf";
-	"\"\"a"; "a\"\""; "\"\"asdfad\"\""] ;
-    test1 SC.safely_quote_identifier [
-	("", "");
-	("a", "\"a\""); (* "a" is a keyword *)
-	("b", "b");
-	("abc", "abc");
-	("\"\"", "\"\"");
-	("\"a\"", "\"a\"");
-	("select", "\"select\"");
-	("array_MAX_cardinality", "\"array_MAX_cardinality\"")
-    ]
-    
 let string_of_order_by_list_test () =
     test1 (S.Select.string_of_order_by ~indent:0)
 	Select.([
@@ -161,7 +147,7 @@ module String_of_expr_test = struct
     let t = Text "This is' som'e text"
     let d = Date date
 
-    let n = Null
+    let n : 'a expr = Null 
 
     (* Nullable values *)
     let int_null = IntNull 100
@@ -332,13 +318,18 @@ let run_database_tests () =
 	in /tests/* contain. *)
 	let file_with_query = [
 	    ("select1", `Select select_query1 ) ;
-	    ("select2", `Select select_query2 )
+	    ("select2", `Select select_query2 ) ;
+	    ("update1", `Update update_query1 ) ;
+	    ("insert1", `Insert insert_query1 ) ;
+	    ("delete1", `Delete delete_query1 )
 	] in List.iter (fun (f, q) ->
 	    let query = string_of_test_file f
 	    in let s = match q with
-		| `Select s -> Select.to_string s
-	    in
-		if query = s
+			| `Select s -> Select.to_string s
+			| `Update u -> Update.to_string u
+			| `Insert i -> Insert.to_string i
+			| `Delete d -> Delete.to_string d
+	    in if query = s
 		then ignore (conn#exec s) (* Execute to make sure the syntax is valid. *)
 		else (
 		    print_endline ("\n\nTest " ^ f ^ " failed.\n") ;

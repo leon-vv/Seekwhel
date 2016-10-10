@@ -1,0 +1,3 @@
+DELETE FROM person
+WHERE
+	CHAR_LENGTH("name") > CHAR_LENGTH(COALESCE(parent, ''))

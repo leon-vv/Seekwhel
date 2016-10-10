@@ -163,14 +163,14 @@ module Make : functor (C : SeekwhelConnection.S) -> sig
 		| Expr of 'a expr
 		| Default
 
-	type column_eq =
-		| ColumnEq : 'a column * 'a expr -> column_eq
-
-	type column_eq_default =
-		| ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
+	type column_and_value =
+		| Default : 'a column -> column_and_value
+		| Null : 'a option column -> column_and_value
+		| ColumnValue : 'a column * 'a expr -> column_and_value
+		| OptColumnValue : 'a option column * 'a expr -> column_and_value
 
 	val stringify_column_and_opt_expr_array
-		: indent:int -> column_eq_default array -> (string * string) list
+		: indent:int -> column_and_value array -> (string * string) list
 
 	val distinct : any_expr list -> t -> t
 	val where : bool expr-> t -> t

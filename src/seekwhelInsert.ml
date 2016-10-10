@@ -5,7 +5,7 @@ module Make(C : SeekwhelConnection.S) = struct
 	module SC = SeekwhelColumn
 	module SI = SeekwhelInner
 
-	type target = SS.column_eq_default array
+	type target = SS.column_and_value array
 	type result = unit
 
 	type t = {
@@ -16,15 +16,18 @@ module Make(C : SeekwhelConnection.S) = struct
 	let q ~table target = {target; table}
 
 	let to_string {target; table} =
-		let aux = fun indent ->
-		let (columns, values) =
+		let indent = 0 
+		and indent_list lst = lst
+			|> List.map (fun s -> "\t" ^ s)
+			|> String.concat ",\n"
+		in let (columns, values) =
 			List.split (SS.stringify_column_and_opt_expr_array ~indent target)
-		in let column_part = String.concat "," columns
-		and values_part = String.concat "," values
-		in "INSERT INTO " ^ SC.safely_quote_identifier table ^
-			" ( " ^ column_part ^ " ) " ^
-			" VALUES ( " ^ values_part ^ " ) "
-		in aux 0
+		in let column_part = indent_list columns
+		and values_part = indent_list values
+		in "INSERT INTO " ^ SC.quoted_string_of_identifier table ^ " (\n"
+			^ column_part ^ "\n)\n"
+			^ "VALUES (\n"
+			^ values_part ^ "\n)\n"
 
 	let exec ins = SI.exec_ignore C.conn (to_string ins)
 

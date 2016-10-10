@@ -93,8 +93,8 @@ module Make (C : SeekwhelConnection.S) = struct
 		(fun (AnyMapping (cl, _, get)) ->
 		    let val_ = get t
 		    in Select.(if Array.mem (quoted_string_of_column cl) T.default_columns
-			then ColumnEqDefault (cl, Default)
-			else ColumnEqDefault (cl, Expr (expr_of_value val_ cl))))
+			then Default cl
+			else ColumnValue (cl, expr_of_value val_ cl)))
 		T.column_mappings ;;
 
 	let insert ts =

@@ -22,13 +22,9 @@ module Seekwhel_test : Seekwhel.Connection = struct
 end
 
 module S = Seekwhel.Make(Seekwhel_test)
+open S
 open S.Select
-module SI = SeekwhelInner
-
-
-(* Todo: sort out module incompatibilites *)
-open SeekwhelColumn
-module SC = S.Column
+open S.Column
 
 module Person = struct
     let name = "person"
@@ -142,8 +138,37 @@ let select_query2 =
 			&&|| (Addi(l, CharLength (col Post.content_col))
 			    =|| (Int 33))))
 	    |> join Post.name FullOuter 
-		~on:(col Person.name_col =|| col Post.person_name_col))
+			~on:(col Person.name_col =|| col Post.person_name_col))
 
+let update_query1 =
+	Person.(
+		let p = Coalesce (col parent_col, Text "")
+		in QPerson.update_q
+			[|
+				ColumnValue
+					(name_col, (Concat (Text "child of ", p))) ;
 
+				Default parent_col
+			|]
+		|> Update.where (CharLength (col name_col) >|| (Int 15)))
+			
+let insert_query1 =
+	Person.(
+		QPerson.insert_q
+		[|
+			ColumnValue
+				(name_col, Text "This is the name") ;
 
+			OptColumnValue
+				(parent_col,
+					Concat (Text "This is the ", Text "name of the parent"))
+		|])
+
+let delete_query1 =
+	Person.(
+		let p = Coalesce (col parent_col, Text "")
+		in QPerson.delete_q
+		|> Delete.where (CharLength (Column name_col) >|| CharLength p))
+			
+	
 

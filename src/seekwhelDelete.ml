@@ -16,10 +16,9 @@ module Make(C : SeekwhelConnection.S) = struct
 		{query with where = (SS.combine_optional_expr query.where expr)}
 
 	let to_string {table; where} =
-		let aux indent =
-		" DELETE " ^ " FROM " ^ SC.safely_quote_identifier table
-		^ SS.where_clause_of_optional_expr ~indent where
-		in aux 0
+		let indent = 0
+		in "DELETE " ^ "FROM " ^ SC.quoted_string_of_identifier table
+		^ SS.where_clause_of_optional_expr ~indent where ^ "\n"
 
 	let exec del = SI.exec_ignore C.conn (to_string  del)
 end

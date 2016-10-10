@@ -24,9 +24,9 @@ type 'a column =
 
 val rename_table : 'a column -> string -> 'a column
 
-val safely_quote_identifier : string -> string
-
 val string_of_column : 'a column -> string
+
+val quoted_string_of_identifier : string -> string
 
 val quoted_string_of_column : 'a column -> string
 

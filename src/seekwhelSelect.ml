@@ -533,7 +533,7 @@ module Make (C : SeekwhelConnection.S) = struct
 		let w = whitespace_of_indent indent
 		in 
 		"\n" ^ w ^ "FROM " ^
-		safely_quote_identifier table
+		quoted_string_of_identifier table
 
 	and string_of_where ~indent where = 
 		(where_clause_of_optional_expr ~indent where)
@@ -568,9 +568,9 @@ module Make (C : SeekwhelConnection.S) = struct
 
 		and string_of_join ~indent {direction; table_name; on} =
 		let w = whitespace_of_indent indent
-		in let name = safely_quote_identifier (fst table_name)
+		in let name = quoted_string_of_identifier (fst table_name)
 		and abbr = match (snd table_name) with
-		| Some abbr -> " " ^ safely_quote_identifier abbr
+		| Some abbr -> " " ^ quoted_string_of_identifier abbr
 		| None -> ""
 		in let name_part = name ^ abbr
 		in "\n" ^ w ^ string_of_direction direction ^ " JOIN " ^ name_part
@@ -637,11 +637,11 @@ module Make (C : SeekwhelConnection.S) = struct
 		| Expr of 'a expr
 		| Default
 
-	type column_eq =
-		| ColumnEq : 'a column * 'a expr -> column_eq
-
-	type column_eq_default =
-		| ColumnEqDefault : 'a column * 'a expr_or_default -> column_eq_default
+	type column_and_value =
+		| Default : 'a column -> column_and_value
+		| Null : 'a option column -> column_and_value
+		| ColumnValue : 'a column * 'a expr -> column_and_value
+		| OptColumnValue : 'a option column * 'a expr -> column_and_value
 
 	let string_of_column_value (type a) (c:a column) (v:a) ~indent : string =
 		let maybe_null f v = match v with
@@ -663,11 +663,14 @@ module Make (C : SeekwhelConnection.S) = struct
 		| ColumnbNull _ -> maybe_null (fun b -> soe ~indent (BoolNull b)) v
 		| ColumnCustomNull {to_psql_string} -> maybe_null (fun c ->  to_psql_string c) v
 
-	let string_of_column_and_opt_expr ~indent (ColumnEqDefault (col, opt_expr)) = 
-		(string_of_column col, match opt_expr with
-		| Expr x -> string_of_expr ~indent x
-		| Default -> "DEFAULT")
-		
+	let string_of_column_and_opt_expr ~indent col_and_val =
+		let qsoc = quoted_string_of_column
+		in match col_and_val with
+			| Default c -> (qsoc c, "DEFAULT")
+			| Null c -> (qsoc c, "NULL")
+			| ColumnValue (c, e) -> (qsoc c, string_of_expr e)
+			| OptColumnValue (c, e) -> (qsoc c, string_of_expr e)
+	
 	let stringify_column_and_opt_expr_array ~indent arr =
 		List.map
 			(string_of_column_and_opt_expr ~indent)

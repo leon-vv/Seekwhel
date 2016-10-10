@@ -101,7 +101,7 @@ let string_no_invalid_chars s =
 		else inner s (idx + 1)
 	in inner s 0
 
-let safely_quote_identifier ident =
+let quoted_string_of_identifier ident =
 	if string_no_invalid_chars ident
 		&& (not (SeekwhelKeywords.is_keyword ident))
 		then ident
@@ -128,7 +128,7 @@ we will make sure that all identifiers
 are quoted (and that no identifier includes a quote). *)
 let safely_quote_column s =
 	let parts = SI.split_string_around_dots s
-		in let new_parts = List.map safely_quote_identifier parts
+		in let new_parts = List.map quoted_string_of_identifier parts
 		in String.concat "." new_parts
 
 

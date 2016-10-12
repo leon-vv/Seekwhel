@@ -21,7 +21,8 @@ module Make(C : SeekwhelConnection.S) = struct
 			|> List.map (fun s -> "\t" ^ s)
 			|> String.concat ",\n"
 		in let (columns, values) =
-			List.split (SS.stringify_column_and_opt_expr_array ~indent target)
+			List.split
+				(SS.strings_of_column_and_value_arr ~indent target)
 		in let column_part = indent_list columns
 		and values_part = indent_list values
 		in "INSERT INTO " ^ SC.quoted_string_of_identifier table ^ " (\n"

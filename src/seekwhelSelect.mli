@@ -170,7 +170,7 @@ module Make : functor (C : SeekwhelConnection.S) -> sig
 	
 	val null : 'a option column -> column_and_value
 
-	val stringify_column_and_opt_expr_array
+	val strings_of_column_and_value_arr
 		: indent:int -> column_and_value array -> (string * string) list
 
 	val distinct : any_expr list -> t -> t

@@ -21,7 +21,7 @@ module Make(C : SeekwhelConnection.S) = struct
 		{query with where = (SS.combine_optional_expr query.where expr)}
 
 	let to_string {target; table; where} =
-		let target_s = SS.stringify_column_and_opt_expr_array ~indent:2 target
+		let target_s = SS.strings_of_column_and_value_arr ~indent:2 target
 		in let equals = List.map (fun (col, v) -> "\n\t" ^ col ^ " =\n\t\t" ^ v) target_s
 		in "UPDATE " ^ (SC.quoted_string_of_identifier table)
 		^ "\nSET" ^ String.concat "," equals

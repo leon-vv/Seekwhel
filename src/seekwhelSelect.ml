@@ -664,16 +664,16 @@ module Make (C : SeekwhelConnection.S) = struct
 		| ColumnbNull _ -> maybe_null (fun b -> soe ~indent (BoolNull b)) v
 		| ColumnCustomNull {to_psql_string} -> maybe_null (fun c ->  to_psql_string c) v
 
-	let string_of_column_and_opt_expr ~indent col_and_val =
+	let strings_of_column_and_value ~indent col_and_val =
 		let qsoc = quoted_string_of_column
 		in match col_and_val with
 			| Default c -> (qsoc c, "DEFAULT")
 			| ColumnValue (c, e) -> (qsoc c, string_of_expr e)
 			| OptColumnValue (c, e) -> (qsoc c, string_of_expr e)
 	
-	let stringify_column_and_opt_expr_array ~indent arr =
+	let strings_of_column_and_value_arr ~indent arr =
 		List.map
-			(string_of_column_and_opt_expr ~indent)
+			(strings_of_column_and_value ~indent)
 			(Array.to_list arr) 
 
 

@@ -24,6 +24,7 @@ end
 module S = Seekwhel.Make(Seekwhel_test)
 open S
 open S.Select
+open S.Select.Infix
 open S.Column
 
 module Person = struct

@@ -229,28 +229,31 @@ module type S = sig
 	val any : 'a expr -> any_expr array
 	val col : 'a column -> 'a expr
 	val any_col : 'a column -> any_expr array
-	val (@||) : any_expr array -> 'a expr -> any_expr array
-	val (|||) : any_expr array -> 'a column -> any_expr array
-
-	val (=?||) : 'a option column -> 'a expr -> column_value
-	val (==||) : 'a column -> 'a expr -> column_value
 	val default : 'a column -> column_value
 
-	val (&&||) : bool expr -> bool expr -> bool expr
-	val (||||) : bool expr -> bool expr -> bool expr
+	module Infix : sig 
+		val (@||) : any_expr array -> 'a expr -> any_expr array
+		val (|||) : any_expr array -> 'a column -> any_expr array
 
-	val (=||) : 'a expr -> 'a expr -> bool expr
-	val (!||) : bool expr -> bool expr
-	val (>||) : 'a expr -> 'a expr -> bool expr
-	val (>=||) : 'a expr -> 'a expr -> bool expr
-	val (<||) : 'a expr -> 'a expr -> bool expr
-	val (<=||) : 'a expr -> 'a expr -> bool expr
-	val (<>||) : 'a expr -> 'a expr -> bool expr
+		val (=?||) : 'a option column -> 'a expr -> column_value
+		val (==||) : 'a column -> 'a expr -> column_value
 
-	val (+||) : int expr -> int expr -> int expr
-	val (-||) : int expr -> int expr -> int expr
-	val (+.||) : float expr -> float expr -> float expr
-	val (-.||) : float expr -> float expr -> float expr
+		val (&&||) : bool expr -> bool expr -> bool expr
+		val (||||) : bool expr -> bool expr -> bool expr
+
+		val (=||) : 'a expr -> 'a expr -> bool expr
+		val (!||) : bool expr -> bool expr
+		val (>||) : 'a expr -> 'a expr -> bool expr
+		val (>=||) : 'a expr -> 'a expr -> bool expr
+		val (<||) : 'a expr -> 'a expr -> bool expr
+		val (<=||) : 'a expr -> 'a expr -> bool expr
+		val (<>||) : 'a expr -> 'a expr -> bool expr
+
+		val (+||) : int expr -> int expr -> int expr
+		val (-||) : int expr -> int expr -> int expr
+		val (+.||) : float expr -> float expr -> float expr
+		val (-.||) : float expr -> float expr -> float expr
+	end
 end
 
 module Make (C : SeekwhelConnection.S) = struct
@@ -1206,28 +1209,31 @@ module Make (C : SeekwhelConnection.S) = struct
 	let any x = [| AnyExpr x |]
 	let col x = Column x
 	let any_col c = c |> col |> any
-	let (@||) xs x = Array.append xs [| AnyExpr x |]
-	let (|||) cs c = Array.append cs (any_col c)
-
-	let (=?||) col opt_x = ColumnValue (col, OptExpr opt_x)
-	let (==||) col expr = ColumnValue (col, Expr expr)
 	let default col = ColumnValue (col, Default)
 
-	let (&&||) x1 x2 = And (x1, x2)
-	let (||||) x1 x2 = Or (x1, x2)
+	module Infix = struct
+		let (@||) xs x = Array.append xs [| AnyExpr x |]
+		let (|||) cs c = Array.append cs (any_col c)
 
-	let (=||) x1 x2 = Eq (x1, x2)
-	let (!||) x = Not x
-	let (>||) x1 x2 = GT (x1, x2)
-	let (>=||) x1 x2 = GTE (x1, x2)
-	let (<||) x1 x2 = LT (x1, x2)
-	let (<=||) x1 x2 = LTE (x1, x2)
-	let (<>||) x1 x2 = !|| (x1 =|| x2)
+		let (=?||) col opt_x = ColumnValue (col, OptExpr opt_x)
+		let (==||) col expr = ColumnValue (col, Expr expr)
 
-	let (+||) x1 x2 = Addi (x1, x2)
-	let (-||) x1 x2 = Subtracti (x1, x2)
-	let (+.||) x1 x2 = Addr (x1, x2)
-	let (-.||) x1 x2 = Subtractr (x1, x2)
+		let (&&||) x1 x2 = And (x1, x2)
+		let (||||) x1 x2 = Or (x1, x2)
+
+		let (=||) x1 x2 = Eq (x1, x2)
+		let (!||) x = Not x
+		let (>||) x1 x2 = GT (x1, x2)
+		let (>=||) x1 x2 = GTE (x1, x2)
+		let (<||) x1 x2 = LT (x1, x2)
+		let (<=||) x1 x2 = LTE (x1, x2)
+		let (<>||) x1 x2 = !|| (x1 =|| x2)
+
+		let (+||) x1 x2 = Addi (x1, x2)
+		let (-||) x1 x2 = Subtracti (x1, x2)
+		let (+.||) x1 x2 = Addr (x1, x2)
+		let (-.||) x1 x2 = Subtractr (x1, x2)
+	end
 end
 
 

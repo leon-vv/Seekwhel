@@ -224,31 +224,35 @@ module type S = sig
 		-> 'b option
 
 
+	(* Helper functions *)
 	val any : 'a expr -> any_expr array
 	val col : 'a column -> 'a expr
 	val any_col : 'a column -> any_expr array
-	val (@||) : any_expr array -> 'a expr -> any_expr array
-	val (|||) : any_expr array -> 'a column -> any_expr array
-
-	val (=?||) : 'a option column -> 'a expr -> column_value
-	val (==||) : 'a column -> 'a expr -> column_value
 	val default : 'a column -> column_value
 
-	val (&&||) : bool expr -> bool expr -> bool expr
-	val (||||) : bool expr -> bool expr -> bool expr
+	module Infix : sig
+		val (@||) : any_expr array -> 'a expr -> any_expr array
+		val (|||) : any_expr array -> 'a column -> any_expr array
 
-	val (=||) : 'a expr -> 'a expr -> bool expr
-	val (!||) : bool expr -> bool expr
-	val (>||) : 'a expr -> 'a expr -> bool expr
-	val (>=||) : 'a expr -> 'a expr -> bool expr
-	val (<||) : 'a expr -> 'a expr -> bool expr
-	val (<=||) : 'a expr -> 'a expr -> bool expr
-	val (<>||) : 'a expr -> 'a expr -> bool expr
+		val (=?||) : 'a option column -> 'a expr -> column_value
+		val (==||) : 'a column -> 'a expr -> column_value
 
-	val (+||) : int expr -> int expr -> int expr
-	val (-||) : int expr -> int expr -> int expr
-	val (+.||) : float expr -> float expr -> float expr
-	val (-.||) : float expr -> float expr -> float expr
+		val (&&||) : bool expr -> bool expr -> bool expr
+		val (||||) : bool expr -> bool expr -> bool expr
+
+		val (=||) : 'a expr -> 'a expr -> bool expr
+		val (!||) : bool expr -> bool expr
+		val (>||) : 'a expr -> 'a expr -> bool expr
+		val (>=||) : 'a expr -> 'a expr -> bool expr
+		val (<||) : 'a expr -> 'a expr -> bool expr
+		val (<=||) : 'a expr -> 'a expr -> bool expr
+		val (<>||) : 'a expr -> 'a expr -> bool expr
+
+		val (+||) : int expr -> int expr -> int expr
+		val (-||) : int expr -> int expr -> int expr
+		val (+.||) : float expr -> float expr -> float expr
+		val (-.||) : float expr -> float expr -> float expr
+	end
 end
 
 module Make : functor (C : SeekwhelConnection.S) -> S

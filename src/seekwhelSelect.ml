@@ -232,6 +232,10 @@ module type S = sig
 	val (@||) : any_expr array -> 'a expr -> any_expr array
 	val (|||) : any_expr array -> 'a column -> any_expr array
 
+	val (=?||) : 'a option column -> 'a expr -> column_value
+	val (==||) : 'a column -> 'a expr -> column_value
+	val default : 'a column -> column_value
+
 	val (&&||) : bool expr -> bool expr -> bool expr
 	val (||||) : bool expr -> bool expr -> bool expr
 
@@ -1109,7 +1113,6 @@ module Make (C : SeekwhelConnection.S) = struct
 		| Subqueryt sel -> mns ()
 		| Subqueryd sel -> mnd ()
 
-
 		| Exists _ -> tinb ()
 		| AnyEq1 _ -> tinb ()
 		| AnyEq2 _ -> tinb ()
@@ -1205,6 +1208,10 @@ module Make (C : SeekwhelConnection.S) = struct
 	let any_col c = c |> col |> any
 	let (@||) xs x = Array.append xs [| AnyExpr x |]
 	let (|||) cs c = Array.append cs (any_col c)
+
+	let (=?||) col opt_x = ColumnValue (col, OptExpr opt_x)
+	let (==||) col expr = ColumnValue (col, Expr expr)
+	let default col = ColumnValue (col, Default)
 
 	let (&&||) x1 x2 = And (x1, x2)
 	let (||||) x1 x2 = Or (x1, x2)

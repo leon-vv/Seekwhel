@@ -230,6 +230,10 @@ module type S = sig
 	val (@||) : any_expr array -> 'a expr -> any_expr array
 	val (|||) : any_expr array -> 'a column -> any_expr array
 
+	val (=?||) : 'a option column -> 'a expr -> column_value
+	val (==||) : 'a column -> 'a expr -> column_value
+	val default : 'a column -> column_value
+
 	val (&&||) : bool expr -> bool expr -> bool expr
 	val (||||) : bool expr -> bool expr -> bool expr
 

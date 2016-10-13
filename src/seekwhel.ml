@@ -20,15 +20,16 @@ open CalendarLib
 
 module type Connection = SeekwhelConnection.S
 
-module Make (C : SeekwhelConnection.S) = struct
+module Make (C : SeekwhelConnection.S)
+= struct
 
     module Column = SeekwhelColumn
     open Column
 
-    module Insert = SeekwhelInsert.Make(C)
     module Select = SeekwhelSelect.Make(C)
-    module Update = SeekwhelUpdate.Make(C)
-    module Delete = SeekwhelDelete.Make(C)
+    module Insert = SeekwhelInsert.Make(C)(Select)
+    module Update = SeekwhelUpdate.Make(C)(Select)
+    module Delete = SeekwhelDelete.Make(C)(Select)
 
     module SI = SeekwhelInner
 
@@ -87,21 +88,21 @@ module Make (C : SeekwhelConnection.S) = struct
 	    result_of_expr_and_limit expr 2
 	    |> Select.get_unique t_of_callback
 	    
-	
 	let column_value_array_of_t t =
 	    Array.map
 		(fun (AnyMapping (cl, _, get)) ->
 		    let val_ = get t
 		    in Select.(if Array.mem (quoted_string_of_column cl) T.default_columns
-			then Default cl
-			else ColumnValue (cl, expr_of_value val_ cl)))
+				then ColumnValue (cl, Default)
+				else ColumnValue (cl, Expr (expr_of_value val_ cl))))
 		T.column_mappings ;;
 
 	let insert ts =
-	    Array.iter (fun t ->
-	    	insert_q (column_value_array_of_t t)
-			|> Insert.exec)
-		ts
+		Insert.(
+			Array.iter (fun t ->
+				insert_q (ColumnValue (column_value_array_of_t t))
+				|> Insert.exec)
+			ts)
 	
 	let equal_expr cl v =
 	    Select.(Eq (Column cl, expr_of_value v cl))

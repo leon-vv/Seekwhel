@@ -22,6 +22,9 @@ type 'a column =
 	| ColumnbNull : string -> bool option column
 	| ColumnCustomNull : 'a custom_column -> 'a option column
 
+type any_column =
+	| AnyCol : 'a column -> any_column
+
 val rename_table : 'a column -> string -> 'a column
 
 val string_of_column : 'a column -> string

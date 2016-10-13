@@ -1,5 +1,6 @@
 
-module Make : functor(C : SeekwhelConnection.S) -> sig
+module Make : functor(C : SeekwhelConnection.S)(SS : SeekwhelSelect.S)
+-> sig
 
 	type t
 	type result = unit
@@ -7,7 +8,10 @@ module Make : functor(C : SeekwhelConnection.S) -> sig
 	val to_string : t -> string
 	val exec : t -> result
 
-	type target = SeekwhelSelect.Make(C).column_and_value array 
+	type target =
+		| ColumnValue : SS.column_value array -> target
+		| Select : SeekwhelColumn.any_column array * SS.t -> target
+
 
 	val q : table:string -> target -> t
 end

@@ -1,7 +1,7 @@
 open SeekwhelColumn
 open CalendarLib
 
-module Make : functor (C : SeekwhelConnection.S) -> sig
+module type S = sig
 
 	type 'a custom_expr = {
 		value : 'a ;
@@ -158,20 +158,20 @@ module Make : functor (C : SeekwhelConnection.S) -> sig
 	val string_of_expr : ?indent:int -> 'a expr -> string
 
 	val expr_of_value : 'a -> 'a column -> 'a expr
-		
-	type 'a expr_or_default =
-		| Expr of 'a expr
-		| Default
+				
+	(* The value of a column in a update or insert query *)
+	type 'a value =
+		| Default : 'a value
+		| Expr : 'a expr -> 'a value
+		| OptExpr : 'a expr -> 'a option value
 
-	type column_and_value =
-		| Default : 'a column -> column_and_value
-		| ColumnValue : 'a column * 'a expr -> column_and_value
-		| OptColumnValue : 'a option column * 'a expr -> column_and_value
+	type column_value =
+		| ColumnValue : 'a column * 'a value -> column_value
 	
-	val null : 'a option column -> column_and_value
+	val null : 'a option value
 
-	val strings_of_column_and_value_arr
-		: indent:int -> column_and_value array -> (string * string) list
+	val strings_of_column_value_arr
+		: indent:int -> column_value array -> (string * string) list
 
 	val distinct : any_expr list -> t -> t
 	val where : bool expr-> t -> t
@@ -242,3 +242,4 @@ module Make : functor (C : SeekwhelConnection.S) -> sig
 	val (-.||) : float expr -> float expr -> float expr
 end
 
+module Make : functor (C : SeekwhelConnection.S) -> S

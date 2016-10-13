@@ -16,15 +16,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-module type Connection = SeekwhelConnection.S
-
-module Make : functor (C : Connection) -> sig
+module Make : functor (C : SeekwhelConnection.S) -> sig
 
 	module Column = SeekwhelColumn
     module Select : module type of SeekwhelSelect.Make(C)
-    module Update : module type of SeekwhelUpdate.Make(C)
-    module Insert : module type of SeekwhelInsert.Make(C)
-    module Delete : module type of SeekwhelDelete.Make(C)
+    module Update : module type of SeekwhelUpdate.Make(C)(Select)
+    module Insert : module type of SeekwhelInsert.Make(C)(Select)
+    module Delete : module type of SeekwhelDelete.Make(C)(Select)
 
     module type Table = sig
 		val name : string 

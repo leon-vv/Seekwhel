@@ -146,23 +146,24 @@ let update_query1 =
 		in QPerson.update_q
 			[|
 				ColumnValue
-					(name_col, (Concat (Text "child of ", p))) ;
+					(name_col, Expr (Concat (Text "child of ", p))) ;
 
-				Default parent_col
+				ColumnValue (parent_col, Default)
 			|]
 		|> Update.where (CharLength (col name_col) >|| (Int 15)))
 			
 let insert_query1 =
 	Person.(
 		QPerson.insert_q
-		[|
-			ColumnValue
-				(name_col, Text "This is the name") ;
+			(Insert.ColumnValue [|
+				ColumnValue
+					(name_col, Expr (Text "This is the name")) ;
 
-			OptColumnValue
-				(parent_col,
-					Concat (Text "This is the ", Text "name of the parent"))
-		|])
+				ColumnValue
+					(parent_col,
+						OptExpr
+							(Concat (Text "This is the ", Text "name of the parent")))
+			|]))
 
 let delete_query1 =
 	Person.(

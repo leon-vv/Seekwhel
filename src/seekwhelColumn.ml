@@ -23,6 +23,9 @@ type 'a column =
 	| ColumnbNull : string -> bool option column
 	| ColumnCustomNull : 'a custom_column -> 'a option column
 
+type any_column =
+	| AnyCol : 'a column -> any_column
+
 (* Rename the table name in the column 'column'.
 We assume the column consists of three or two parts
 separated by dots (schema name, table name, column name) *)

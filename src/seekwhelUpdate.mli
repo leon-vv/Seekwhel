@@ -1,5 +1,5 @@
 
-module Make : functor(C : SeekwhelConnection.S)
+module Make : functor(C : SeekwhelConnection.S)(SS : SeekwhelSelect.S)
 -> sig
 
 	type t
@@ -8,10 +8,10 @@ module Make : functor(C : SeekwhelConnection.S)
 	val to_string : t -> string
 	val exec : t -> result
 
-	type target = SeekwhelSelect.Make(C).column_and_value array
+	type target = SS.column_value array
 
 	val q : table:string -> target -> t
 
-	val where : bool SeekwhelSelect.Make(C).expr -> t -> t
+	val where : bool SS.expr -> t -> t
 end
 

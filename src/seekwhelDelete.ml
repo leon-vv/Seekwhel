@@ -1,7 +1,7 @@
 
-module Make(C : SeekwhelConnection.S) = struct
+module Make(C : SeekwhelConnection.S)(SS : SeekwhelSelect.S) =
+struct
 
-	module SS = SeekwhelSelect.Make(C)
 	module SC = SeekwhelColumn
 	module SI = SeekwhelInner
 

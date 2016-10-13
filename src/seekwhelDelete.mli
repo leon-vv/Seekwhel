@@ -1,10 +1,11 @@
 
-module Make : functor(C : SeekwhelConnection.S) -> sig
+module Make : functor(C : SeekwhelConnection.S)(SS : SeekwhelSelect.S)
+-> sig
 
 	type t
 
 	val q : table:string -> t
-	val where : bool SeekwhelSelect.Make(C).expr -> t -> t
+	val where : bool SS.expr -> t -> t
 
 	val to_string : t -> string
 	val exec : t -> unit

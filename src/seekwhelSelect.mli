@@ -120,6 +120,11 @@ module type S = sig
 		| Leastt : string expr list -> string expr
 
 		(* Subqueries *)
+		| Subqueryi : t -> int option expr (* WARNING *)
+		| Subqueryr : t -> float option expr (* WARNING *)
+		| Subqueryt : t -> string option expr (* WARNING *)
+		| Subqueryd : t -> Calendar.t option expr (* WARNING *)
+
 		| Exists : t -> bool expr
 
 		| AnyEq1 : 'a expr * t -> bool expr

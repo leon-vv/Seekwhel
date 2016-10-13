@@ -122,6 +122,11 @@ module type S = sig
 		| Leastt : string expr list -> string expr
 
 		(* Subqueries *)
+		| Subqueryi : t -> int option expr (* WARNING *)
+		| Subqueryr : t -> float option expr (* WARNING *)
+		| Subqueryt : t -> string option expr (* WARNING *)
+		| Subqueryd : t -> Calendar.t option expr (* WARNING *)
+
 		| Exists : t -> bool expr
 
 		| AnyEq1 : 'a expr * t -> bool expr
@@ -373,6 +378,11 @@ module Make (C : SeekwhelConnection.S) = struct
 		| Leastt : string expr list -> string expr
 
 		(* Subqueries *)
+		| Subqueryi : t -> int option expr (* WARNING *)
+		| Subqueryr : t -> float option expr (* WARNING *)
+		| Subqueryt : t -> string option expr (* WARNING *)
+		| Subqueryd : t -> Calendar.t option expr (* WARNING *)
+
 		| Exists : t -> bool expr
 
 		| AnyEq1 : 'a expr * t -> bool expr
@@ -723,6 +733,11 @@ module Make (C : SeekwhelConnection.S) = struct
 			| Leastd xs -> "LEAST" ^ concat_expr xs
 			| Leastt xs -> "LEAST" ^ concat_expr xs
 
+
+			| Subqueryi sel -> subselect sel
+			| Subqueryr sel -> subselect sel
+			| Subqueryt sel -> subselect sel
+			| Subqueryd sel -> subselect sel
 
 			| Exists sel -> "EXISTS " ^ subselect sel
 
@@ -1088,6 +1103,12 @@ module Make (C : SeekwhelConnection.S) = struct
 		| Leastr _ -> tinf ()
 		| Leastd _ -> tind ()
 		| Leastt _ -> tins ()
+
+		| Subqueryi sel -> mni ()
+		| Subqueryr sel -> mnf ()
+		| Subqueryt sel -> mns ()
+		| Subqueryd sel -> mnd ()
+
 
 		| Exists _ -> tinb ()
 		| AnyEq1 _ -> tinb ()
